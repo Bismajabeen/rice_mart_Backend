@@ -74,10 +74,18 @@ class UserController extends Controller
             ], 401);
         }
 
+        // Revoke previous tokens (optional but recommended)
+        $user->tokens()->delete();
+
+        // Generate a long-lived Sanctum token
+        $token = $user->createToken('auth_token')->plainTextToken;
+
         return response()->json([
             'success' => true,
             'message' => 'Login successful',
-            'user' => $user
+            'token'   => $token,
+            'token_type' => 'Bearer',
+            'user'    => $user
         ], 200);
     }
 }
