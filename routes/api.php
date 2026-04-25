@@ -13,4 +13,5 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/shops/my-shop',        [ShopController::class, 'myShop']);
     Route::post('/shops/{id}',          [ShopController::class, 'update']);   // POST + _method=PUT
     Route::delete('/shops/{id}',        [ShopController::class, 'destroy']);
+    Route::get('/shops', [ShopController::class, 'index']);
 });
