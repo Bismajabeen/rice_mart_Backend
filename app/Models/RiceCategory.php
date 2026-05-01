@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,6 +13,13 @@ class RiceCategory extends Model
         'shop_id',
         'name',
         'price_per_kg',
+        'stock_kg',
+        'image',
+    ];
+
+    protected $casts = [
+        'price_per_kg' => 'float',
+        'stock_kg'     => 'float',
     ];
 
     public function shop()

@@ -6,14 +6,11 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('shops', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->id();  // ✅ must be id() NOT id('shop_id')
+            $table->unsignedBigInteger('user_id'); // ✅ manual column
             $table->string('cnic_number')->unique();
             $table->string('cnic_image')->nullable();
             $table->string('shop_name');
@@ -24,14 +21,16 @@ return new class extends Migration
             $table->boolean('is_approved')->default(false);
             $table->timestamps();
 
-            // Index for faster queries
+            // ✅ Add foreign key separately after column definition
+            $table->foreign('user_id')
+                  ->references('id')
+                  ->on('users')
+                  ->onDelete('cascade');
+
             $table->index('user_id');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('shops');

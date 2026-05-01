@@ -9,6 +9,7 @@ class Shop extends Model
 {
     use HasFactory;
 
+    // ✅ Standard primary key 'id' (Laravel default — no need to override)
     protected $fillable = [
         'user_id',
         'cnic_number',
@@ -24,8 +25,6 @@ class Shop extends Model
     protected $casts = [
         'is_approved' => 'boolean',
     ];
-
-    // ── Relationships ─────────────────────────────────────────────────────
 
     public function user()
     {

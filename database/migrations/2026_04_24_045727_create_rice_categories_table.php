@@ -6,26 +6,22 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('rice_categories', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            // ✅ foreignId('shop_id') now correctly references shops.id
+            $table->foreignId('shop_id')->constrained('shops')->onDelete('cascade');
             $table->string('name');
             $table->decimal('price_per_kg', 10, 2);
+            $table->decimal('stock_kg', 10, 2)->default(0);
+            $table->string('image')->nullable();
             $table->timestamps();
 
-            // Index for faster queries
             $table->index('shop_id');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('rice_categories');
