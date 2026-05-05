@@ -10,7 +10,7 @@ class RiceCategory extends Model
     use HasFactory;
 
     protected $fillable = [
-        'shop_id',
+
         'name',
         'price_per_kg',
         'stock_kg',

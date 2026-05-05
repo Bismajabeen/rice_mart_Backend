@@ -9,7 +9,6 @@ class Shop extends Model
 {
     use HasFactory;
 
-    // ✅ Standard primary key 'id' (Laravel default — no need to override)
     protected $fillable = [
         'user_id',
         'cnic_number',
@@ -20,10 +19,12 @@ class Shop extends Model
         'address',
         'description',
         'is_approved',
+        'rice_categories', // ✅ JSON column — no shop_id, no separate table
     ];
 
     protected $casts = [
-        'is_approved' => 'boolean',
+        'is_approved'     => 'boolean',
+        'rice_categories' => 'array', // ✅ auto encode/decode JSON
     ];
 
     public function user()
@@ -31,8 +32,5 @@ class Shop extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function riceCategories()
-    {
-        return $this->hasMany(RiceCategory::class);
-    }
+    // ✅ No riceCategories() relationship — stored directly in this model
 }

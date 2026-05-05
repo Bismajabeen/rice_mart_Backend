@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Shop;
-use App\Models\RiceCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -11,80 +10,83 @@ use Illuminate\Support\Facades\Validator;
 
 class ShopController extends Controller
 {
-    // ── Helper: build full public URL ─────────────────────────────────────
+    // ── Helper: resolve full public URL ──────────────────────────────────
     private function publicUrl(?string $path): ?string
     {
         return $path ? Storage::disk('public')->url($path) : null;
     }
 
-    // ── Helper: transform shop for response (resolve image URLs) ─────────
-    private function transformShop(Shop $shop): Shop
+    // ── Helper: build response shape for shop ─────────────────────────────
+    // Resolves cnic_image and every category image to full URLs
+    private function transformShop(Shop $shop): array
     {
-        $rawCnic = $shop->getRawOriginal('cnic_image');
-        if ($rawCnic) {
-            $shop->cnic_image = $this->publicUrl($rawCnic);
+        $data = $shop->toArray();
+
+        // Resolve CNIC image URL
+        if (!empty($data['cnic_image'])) {
+            $data['cnic_image'] = $this->publicUrl($shop->getRawOriginal('cnic_image'));
         }
 
-        $shop->riceCategories->each(function ($cat) {
-            $rawImg = $cat->getRawOriginal('image');
-            if ($rawImg) {
-                $cat->image = $this->publicUrl($rawImg);
+        // Resolve each category image URL
+        $categories = $data['rice_categories'] ?? [];
+        foreach ($categories as &$cat) {
+            if (!empty($cat['image'])) {
+                $cat['image_url'] = $this->publicUrl($cat['image']); // full URL for display
+                // 'image' stays as raw path so Flutter can send it back on update
             }
-        });
+        }
+        unset($cat);
+        $data['rice_categories'] = $categories;
 
-        return $shop;
+        return $data;
     }
 
-    // ── Helper: delete + recreate rice categories ─────────────────────────
-    // Category images arrive as: rice_image_0, rice_image_1, ...
-    // Existing images (not re-uploaded) keep their old path via 'existing_image_N'
-    private function saveCategories(Shop $shop, string $categoriesJson, Request $request): void
+    // ── Helper: upload category images and build categories array ─────────
+    // rice_image_0, rice_image_1 ... come as multipart files
+    // rice_categories JSON: [{ name, price_per_kg, stock_kg, image? }]
+    // 'image' in JSON = existing raw path to keep (on update)
+    private function buildCategories(Request $request, array $old = []): array
     {
-        $categories = json_decode($categoriesJson, true);
-        if (!is_array($categories)) return;
+        $raw = json_decode($request->input('rice_categories', '[]'), true);
+        if (!is_array($raw)) $raw = [];
 
-        // Collect old image paths before deleting records
-        $oldImages = $shop->riceCategories->pluck('image')->filter()->toArray();
-
-        // Determine which old paths are being reused
+        // Collect old paths so we can delete ones not reused
+        $oldPaths  = array_column($old, 'image');
         $reusedPaths = [];
-        foreach ($categories as $index => $cat) {
-            $existingKey = 'existing_image_' . $index;
-            if (!empty($cat[$existingKey])) {
-                $reusedPaths[] = $cat[$existingKey]; // raw storage path, not URL
-            }
-        }
 
-        // Delete old images that are NOT being reused
-        foreach ($oldImages as $oldPath) {
-            if (!in_array($oldPath, $reusedPaths) && Storage::disk('public')->exists($oldPath)) {
-                Storage::disk('public')->delete($oldPath);
-            }
-        }
+        $categories = [];
 
-        // Delete old records
-        $shop->riceCategories()->delete();
-
-        foreach ($categories as $index => $cat) {
+        foreach ($raw as $i => $cat) {
             $imagePath = null;
+            $fileKey   = 'rice_image_' . $i;
 
-            $fileKey = 'rice_image_' . $index;
             if ($request->hasFile($fileKey)) {
-                // New image uploaded for this category
+                // New image uploaded
                 $imagePath = $request->file($fileKey)->store('rice_images', 'public');
-            } elseif (!empty($cat['existing_image'])) {
-                // Keep the old storage path (sent back from Flutter)
-                $imagePath = $cat['existing_image'];
+            } elseif (!empty($cat['image'])) {
+                // Keep existing raw path
+                $imagePath = $cat['image'];
+                $reusedPaths[] = $imagePath;
             }
 
-            RiceCategory::create([
-                'shop_id'      => $shop->id,
-                'name'         => trim($cat['name'] ?? ''),
+            $categories[] = [
+                'name'         => trim($cat['name']         ?? ''),
                 'price_per_kg' => (float)($cat['price_per_kg'] ?? 0),
-                'stock_kg'     => (float)($cat['stock_kg'] ?? 0),
-                'image'        => $imagePath,
-            ]);
+                'stock_kg'     => (float)($cat['stock_kg']     ?? 0),
+                'image'        => $imagePath, // raw storage path
+            ];
         }
+
+        // Delete old images that are no longer used
+        foreach ($oldPaths as $oldPath) {
+            if ($oldPath && !in_array($oldPath, $reusedPaths)) {
+                if (Storage::disk('public')->exists($oldPath)) {
+                    Storage::disk('public')->delete($oldPath);
+                }
+            }
+        }
+
+        return $categories;
     }
 
     // ── CREATE SHOP ───────────────────────────────────────────────────────
@@ -92,8 +94,8 @@ class ShopController extends Controller
     public function create(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'cnic_number'     => 'required',
-            'cnic_image'      => 'nullable|image|mimes:jpg,jpeg,png|max:4096',
+            'cnic_number'     => ['required', 'string', 'regex:/^\d{5}-\d{7}-\d$/', 'unique:shops,cnic_number'],
+            'cnic_image'      => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
             'shop_name'       => 'required|string|max:255',
             'owner_name'      => 'required|string|max:255',
             'phone'           => 'required|string|max:20',
@@ -113,46 +115,45 @@ class ShopController extends Controller
         try {
             $user = Auth::user();
 
-            $existing = Shop::where('user_id', $user->id)->first();
-            if ($existing) {
+            if (Shop::where('user_id', $user->id)->exists()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'You already have a shop. Delete it first to create a new one.',
+                    'message' => 'You already have a shop. Delete it first.',
                 ], 409);
             }
 
-            $cnicImagePath = null;
+            // Upload CNIC image
+            $cnicPath = null;
             if ($request->hasFile('cnic_image')) {
-                $cnicImagePath = $request->file('cnic_image')->store('cnic_images', 'public');
+                $cnicPath = $request->file('cnic_image')->store('cnic_images', 'public');
             }
 
+            // Build categories JSON with uploaded images
+            $categories = $this->buildCategories($request);
+
             $shop = Shop::create([
-                'user_id'     => $user->id,
-                'cnic_number' => $request->cnic_number,
-                'cnic_image'  => $cnicImagePath,
-                'shop_name'   => $request->shop_name,
-                'owner_name'  => $request->owner_name,
-                'phone'       => $request->phone,
-                'address'     => $request->address,
-                'description' => $request->description ?? '',
-                'is_approved' => false,
+                'user_id'         => $user->id,
+                'cnic_number'     => $request->cnic_number,
+                'cnic_image'      => $cnicPath,
+                'shop_name'       => $request->shop_name,
+                'owner_name'      => $request->owner_name,
+                'phone'           => $request->phone,
+                'address'         => $request->address,
+                'description'     => $request->description ?? '',
+                'is_approved'     => false,
+                'rice_categories' => $categories,
             ]);
-
-            $this->saveCategories($shop, $request->rice_categories, $request);
-
-            $shop->load('riceCategories');
-            $this->transformShop($shop);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Shop created successfully. Awaiting admin approval.',
-                'data'    => $shop,
+                'message' => 'Shop created. Awaiting admin approval.',
+                'data'    => $this->transformShop($shop),
             ], 201);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error creating shop: ' . $e->getMessage(),
+                'message' => 'Error: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -162,9 +163,7 @@ class ShopController extends Controller
     public function myShop()
     {
         try {
-            $shop = Shop::where('user_id', Auth::id())
-                ->with('riceCategories')
-                ->first();
+            $shop = Shop::where('user_id', Auth::id())->first();
 
             if (!$shop) {
                 return response()->json([
@@ -173,34 +172,31 @@ class ShopController extends Controller
                 ], 404);
             }
 
-            $this->transformShop($shop);
-
             return response()->json([
                 'success' => true,
-                'data'    => $shop,
+                'data'    => $this->transformShop($shop),
             ], 200);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error fetching shop: ' . $e->getMessage(),
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
 
     // ── UPDATE SHOP ───────────────────────────────────────────────────────
-    // POST /api/shops/{id}  (Flutter sends _method=PUT)
+    // POST /api/shops/{id}  (_method=PUT)
     public function update(Request $request, $id)
     {
         try {
             $shop = Shop::where('id', $id)
                 ->where('user_id', Auth::id())
-                ->with('riceCategories')
                 ->firstOrFail();
 
             $validator = Validator::make($request->all(), [
-                'cnic_number'     => 'nullable|string|regex:/^\d{5}-\d{7}-\d{1}$/',
-                'cnic_image'      => 'nullable|image|mimes:jpg,jpeg,png|max:4096',
+                'cnic_number'     => ['nullable', 'string', 'regex:/^\d{5}-\d{7}-\d$/'],
+                'cnic_image'      => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
                 'shop_name'       => 'required|string|max:255',
                 'owner_name'      => 'required|string|max:255',
                 'phone'           => 'required|string|max:20',
@@ -219,46 +215,48 @@ class ShopController extends Controller
 
             // Update CNIC image if new one provided
             if ($request->hasFile('cnic_image')) {
-                $rawOld = $shop->getRawOriginal('cnic_image');
-                if ($rawOld && Storage::disk('public')->exists($rawOld)) {
-                    Storage::disk('public')->delete($rawOld);
+                $oldRaw = $shop->getRawOriginal('cnic_image');
+                if ($oldRaw && Storage::disk('public')->exists($oldRaw)) {
+                    Storage::disk('public')->delete($oldRaw);
                 }
-                $shop->cnic_image = $request->file('cnic_image')->store('cnic_images', 'public');
+                $shop->cnic_image = $request->file('cnic_image')
+                    ->store('cnic_images', 'public');
                 $shop->save();
             }
 
+            // Build updated categories (handles image uploads + deletions)
+            $oldCategories = $shop->rice_categories ?? [];
+            $newCategories = $request->filled('rice_categories')
+                ? $this->buildCategories($request, $oldCategories)
+                : $oldCategories;
+
             $shop->update([
-                'cnic_number' => $request->cnic_number ?? $shop->cnic_number,
-                'shop_name'   => $request->shop_name,
-                'owner_name'  => $request->owner_name,
-                'phone'       => $request->phone,
-                'address'     => $request->address,
-                'description' => $request->description ?? '',
+                'cnic_number'     => $request->cnic_number ?? $shop->cnic_number,
+                'shop_name'       => $request->shop_name,
+                'owner_name'      => $request->owner_name,
+                'phone'           => $request->phone,
+                'address'         => $request->address,
+                'description'     => $request->description ?? '',
+                'rice_categories' => $newCategories,
             ]);
 
-            if ($request->filled('rice_categories')) {
-                $shop->load('riceCategories'); // refresh before diff
-                $this->saveCategories($shop, $request->rice_categories, $request);
-            }
-
-            $shop->refresh()->load('riceCategories');
-            $this->transformShop($shop);
+            $shop->refresh();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Shop updated successfully.',
-                'data'    => $shop,
+                'data'    => $this->transformShop($shop),
             ], 200);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Shop not found or unauthorized.',
+                'message' => 'Shop not found.',
             ], 404);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error updating shop: ' . $e->getMessage(),
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
@@ -269,22 +267,20 @@ class ShopController extends Controller
         try {
             $shop = Shop::where('id', $id)
                 ->where('user_id', Auth::id())
-                ->with('riceCategories')
                 ->firstOrFail();
 
-            if ($shop->cnic_image) {
-                $raw = $shop->getRawOriginal('cnic_image');
-                if ($raw && Storage::disk('public')->exists($raw)) {
-                    Storage::disk('public')->delete($raw);
-                }
+            // Delete CNIC image
+            $rawCnic = $shop->getRawOriginal('cnic_image');
+            if ($rawCnic && Storage::disk('public')->exists($rawCnic)) {
+                Storage::disk('public')->delete($rawCnic);
             }
 
-            $shop->riceCategories->each(function ($cat) {
-                $raw = $cat->getRawOriginal('image');
-                if ($raw && Storage::disk('public')->exists($raw)) {
-                    Storage::disk('public')->delete($raw);
+            // Delete all category images
+            foreach ($shop->rice_categories ?? [] as $cat) {
+                if (!empty($cat['image']) && Storage::disk('public')->exists($cat['image'])) {
+                    Storage::disk('public')->delete($cat['image']);
                 }
-            });
+            }
 
             $shop->delete();
 
@@ -294,52 +290,54 @@ class ShopController extends Controller
             ], 200);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Shop not found or unauthorized.',
-            ], 404);
+            return response()->json(['success' => false, 'message' => 'Shop not found.'], 404);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error deleting shop: ' . $e->getMessage(),
-            ], 500);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
 
     // ── ALL APPROVED SHOPS ────────────────────────────────────────────────
+    // GET /api/shops
     public function index()
     {
         try {
             $shops = Shop::where('is_approved', true)
-                ->with('riceCategories', 'user:id,name')
+                ->with('user:id,name')
                 ->paginate(20);
 
-            $shops->getCollection()->transform(fn($s) => $this->transformShop($s));
+            $shops->getCollection()->transform(
+                fn($s) => $this->transformShop($s)
+            );
 
             return response()->json(['success' => true, 'data' => $shops], 200);
+
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
 
     // ── SEARCH SHOPS ──────────────────────────────────────────────────────
+    // GET /api/shops/search?q=
     public function search(Request $request)
     {
         try {
-            $query = $request->input('q');
+            $q = $request->input('q', '');
 
             $shops = Shop::where('is_approved', true)
-                ->where(function ($q) use ($query) {
-                    $q->where('shop_name', 'like', "%$query%")
-                      ->orWhere('owner_name', 'like', "%$query%")
-                      ->orWhere('address', 'like', "%$query%");
-                })
-                ->with('riceCategories', 'user:id,name')
+                ->where(fn($qb) => $qb
+                    ->where('shop_name',  'like', "%$q%")
+                    ->orWhere('owner_name', 'like', "%$q%")
+                    ->orWhere('address',    'like', "%$q%")
+                )
+                ->with('user:id,name')
                 ->paginate(20);
 
-            $shops->getCollection()->transform(fn($s) => $this->transformShop($s));
+            $shops->getCollection()->transform(
+                fn($s) => $this->transformShop($s)
+            );
 
             return response()->json(['success' => true, 'data' => $shops], 200);
+
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }

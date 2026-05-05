@@ -9,8 +9,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('shops', function (Blueprint $table) {
-            $table->id();  // ✅ must be id() NOT id('shop_id')
-            $table->unsignedBigInteger('user_id'); // ✅ manual column
+            $table->id();
+            $table->unsignedBigInteger('user_id');
             $table->string('cnic_number')->unique();
             $table->string('cnic_image')->nullable();
             $table->string('shop_name');
@@ -19,9 +19,12 @@ return new class extends Migration
             $table->string('address');
             $table->text('description')->nullable();
             $table->boolean('is_approved')->default(false);
+
+            // ✅ Rice categories stored as JSON — no separate table, no shop_id
+            $table->json('rice_categories')->nullable();
+
             $table->timestamps();
 
-            // ✅ Add foreign key separately after column definition
             $table->foreign('user_id')
                   ->references('id')
                   ->on('users')
