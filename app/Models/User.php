@@ -49,7 +49,7 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
-
+      // shop relation
     public function shop()
 {
     return $this->hasOne(Shop::class);
