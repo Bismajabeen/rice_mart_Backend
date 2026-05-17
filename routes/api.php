@@ -126,7 +126,32 @@ Route::middleware('auth:sanctum')->put(
 Route::middleware('auth:sanctum')->group(function(){
 
     // SELLER ORDERS
-    Route::get('/seller-orders',
-    [SellerOrderController::class,'sellerOrders']);
+    Route::get(
+        '/seller-orders',
+        [SellerOrderController::class,'sellerOrders']
+    );
 
+    // UPDATE SELLER ITEM STATUS
+    Route::put(
+        '/seller/order-item/{id}/status',
+        [SellerOrderController::class,'updateStatus']
+    );
+
+    Route::middleware('auth:sanctum')->get('/active-orders', [OrderController::class, 'activeOrders']);
+
+    Route::middleware('auth:sanctum')->get('/order-history', [OrderController::class, 'orderHistory']);
+
+
+});
+// for admin orders
+Route::middleware('auth:sanctum')->get(
+    '/admin/orders',
+    [OrderController::class, 'adminOrders']
+);
+// admin status 
+Route::middleware('auth:sanctum')->group(function () {
+
+    Route::get('/admin/orders', [OrderController::class, 'adminOrders']);
+
+    Route::put('/admin/orders/{id}/status', [OrderController::class, 'adminUpdateOrderStatus']);
 });

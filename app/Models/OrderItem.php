@@ -13,6 +13,7 @@ class OrderItem extends Model
         'product_id',
         'quantity',
         'price',
+        'status',
     ];
  // product Relation
     public function product()
