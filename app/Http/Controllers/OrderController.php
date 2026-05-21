@@ -7,6 +7,8 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use Illuminate\Support\Facades\DB;
+use App\Http\Controllers\NotificationController;
+
 
 class OrderController extends Controller
 {
@@ -66,6 +68,20 @@ class OrderController extends Controller
                     'status' => 'pending',
                 ]);
 
+                // SELLER NOTIFICATION
+                $sellerUserId = $product->shop->user_id;
+
+                NotificationController::createNotification(
+
+                    $sellerUserId,
+
+                     'New Order',
+
+                     'You received a new order.',
+
+                    'new_order'
+                );
+
                 $product->stock -= $qty;
                 $product->save();
             }
@@ -73,6 +89,18 @@ class OrderController extends Controller
             $order->update([
                 'total_price' => $total
             ]);
+
+            // CUSTOMER NOTIFICATION
+         NotificationController::createNotification(
+
+            $user->id,
+
+           'Order Placed',
+
+            'Your order has been placed successfully.',
+
+            'order_placed'
+            );
 
             DB::commit();
 

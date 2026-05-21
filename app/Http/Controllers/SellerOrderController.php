@@ -8,15 +8,12 @@ use App\Models\OrderItem;
 class SellerOrderController extends Controller
 {
     // =========================
-    // SELLER ORDERS
+    // SELLER ORDERS (GROUPED)
     // =========================
     public function sellerOrders(Request $request)
     {
         $user = $request->user();
 
-        // =========================
-        // GET SELLER SHOP
-        // =========================
         $shop = $user->shop;
 
         if (!$shop) {
@@ -26,20 +23,21 @@ class SellerOrderController extends Controller
             ], 404);
         }
 
-        // =========================
-        // GET ORDER ITEMS OF SHOP
-        // =========================
-        $orders = OrderItem::with([
-            'order',
-            'product',
-        ])
-        ->where('shop_id', $shop->id)
-        ->latest()
-        ->get();
+        // GET ONLY THIS SELLER'S ITEMS
+        $items = OrderItem::with([
+                'order',
+                'product'
+            ])
+            ->where('shop_id', $shop->id)
+            ->latest()
+            ->get();
+
+        // GROUP BY ORDER ID (IMPORTANT FOR MARKETPLACE)
+        $grouped = $items->groupBy('order_id');
 
         return response()->json([
             'success' => true,
-            'orders' => $orders
+            'orders' => $grouped
         ]);
     }
 
@@ -50,9 +48,6 @@ class SellerOrderController extends Controller
     {
         $user = $request->user();
 
-        // =========================
-        // GET SELLER SHOP
-        // =========================
         $shop = $user->shop;
 
         if (!$shop) {
@@ -62,9 +57,21 @@ class SellerOrderController extends Controller
             ], 404);
         }
 
-        // =========================
-        // FIND ONLY SELLER ITEM
-        // =========================
+        // VALIDATE STATUS
+        $request->validate([
+            'status' => 'required'
+        ]);
+
+        $allowed = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+
+        if (!in_array($request->status, $allowed)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid status'
+            ], 400);
+        }
+
+        // FIND ONLY SELLER'S ITEM
         $item = OrderItem::where('id', $id)
             ->where('shop_id', $shop->id)
             ->first();
@@ -76,34 +83,21 @@ class SellerOrderController extends Controller
             ], 404);
         }
 
-        // =========================
-        // SAVE OLD STATUS
-        // =========================
         $oldStatus = $item->status;
 
-        // =========================
         // UPDATE STATUS
-        // =========================
         $item->status = $request->status;
-
         $item->save();
 
-        // =========================
         // RESTORE STOCK IF CANCELLED
-        // =========================
         if (
             $request->status == 'cancelled'
-            &&
-            $oldStatus != 'cancelled'
+            && $oldStatus != 'cancelled'
         ) {
-
             $product = $item->product;
 
             if ($product) {
-
-                $product->stock =
-                    $product->stock + $item->quantity;
-
+                $product->stock += $item->quantity;
                 $product->save();
             }
         }

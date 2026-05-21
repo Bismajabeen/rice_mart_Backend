@@ -27,17 +27,26 @@ class ProductController extends Controller
             'stock' => 'required|numeric',
         ]);
 
-        // CHECK SHOP
-        $shop = Shop::find($request->shop_id);
+        // =========================
+        // CHECK SHOP OWNERSHIP
+        // =========================
+
+        $shop = Shop::where('id', $request->shop_id)
+            ->where('user_id', auth()->id())
+            ->where('is_approved', 1)
+            ->first();
 
         if (!$shop) {
 
             return response()->json([
-                'message' => 'Shop not found'
-            ], 404);
+                'message' => 'Unauthorized shop access'
+            ], 403);
         }
 
+        // =========================
         // CHECK CATEGORY ACTIVE
+        // =========================
+
         $category = RiceCategory::where('id', $request->rice_category_id)
             ->where('status', true)
             ->first();
@@ -49,7 +58,10 @@ class ProductController extends Controller
             ], 400);
         }
 
+        // =========================
         // CREATE PRODUCT
+        // =========================
+
         $product = Product::create([
 
             'user_id' => auth()->id(),
@@ -69,6 +81,8 @@ class ProductController extends Controller
 
         return response()->json([
 
+            'success' => true,
+
             'message' => 'Product added successfully',
 
             'product' => $product,
@@ -80,8 +94,12 @@ class ProductController extends Controller
     // =========================
     public function shopProducts($shopId)
     {
-        $products = Product::with('riceCategory')
+        $products = Product::with([
 
+            'shop',
+            'riceCategory',
+
+        ])
             ->where('shop_id', $shopId)
 
             ->latest()
@@ -100,8 +118,8 @@ class ProductController extends Controller
 
             'shop',
             'riceCategory',
-        ])
 
+        ])
             ->latest()
 
             ->get();
@@ -110,37 +128,22 @@ class ProductController extends Controller
     }
 
     // =========================
-    // DELETE PRODUCT
-    // =========================
-    public function delete($id)
-    {
-        $product = Product::find($id);
-
-        if (!$product) {
-
-            return response()->json([
-                'message' => 'Product not found'
-            ], 404);
-        }
-
-        $product->delete();
-
-        return response()->json([
-            'message' => 'Product deleted successfully'
-        ]);
-    }
-
-    // =========================
     // UPDATE PRODUCT
     // =========================
     public function update(Request $request, $id)
     {
-        $product = Product::find($id);
+        // =========================
+        // CHECK PRODUCT OWNERSHIP
+        // =========================
+
+        $product = Product::where('id', $id)
+            ->where('user_id', auth()->id())
+            ->first();
 
         if (!$product) {
 
             return response()->json([
-                'message' => 'Product not found'
+                'message' => 'Product not found or unauthorized'
             ], 404);
         }
 
@@ -160,9 +163,41 @@ class ProductController extends Controller
 
         return response()->json([
 
+            'success' => true,
+
             'message' => 'Product updated successfully',
 
             'product' => $product,
+        ]);
+    }
+
+    // =========================
+    // DELETE PRODUCT
+    // =========================
+    public function delete($id)
+    {
+        // =========================
+        // CHECK PRODUCT OWNERSHIP
+        // =========================
+
+        $product = Product::where('id', $id)
+            ->where('user_id', auth()->id())
+            ->first();
+
+        if (!$product) {
+
+            return response()->json([
+                'message' => 'Product not found or unauthorized'
+            ], 404);
+        }
+
+        $product->delete();
+
+        return response()->json([
+
+            'success' => true,
+
+            'message' => 'Product deleted successfully'
         ]);
     }
 }

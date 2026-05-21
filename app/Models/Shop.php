@@ -26,9 +26,9 @@ class Shop extends Model
     {
         return $this->hasMany(RiceCategory::class);
     }
-
+            // $shop->user
     public function user()
-{
+   {
     return $this->belongsTo(User::class);
-}
+   }
 }
