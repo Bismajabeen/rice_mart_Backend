@@ -1,4 +1,4 @@
-<?php
+<?php 
 
 namespace Database\Seeders;
 
@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RiceCategorySeeder::class,
             RoleSeeder::class,
+            RolePermissionSeeder::class,
         ]);
     }
 }

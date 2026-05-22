@@ -11,7 +11,10 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\SellerOrderController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\AdminController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\RoleController;
+use App\Http\Controllers\PermissionController;
+
 //
 // =========================
 // AUTH ROUTES
@@ -20,7 +23,6 @@ use App\Http\Controllers\AdminController;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
-
 
 //
 // =========================
@@ -32,7 +34,6 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-
 //
 // =========================
 // PUBLIC RICE CATEGORIES
@@ -41,7 +42,6 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 Route::get('/rice-categories', [RiceCategoryController::class, 'index']);
 Route::get('/all-rice-categories', [RiceCategoryController::class, 'allCategories']);
-
 
 //
 // =========================
@@ -52,7 +52,6 @@ Route::get('/all-rice-categories', [RiceCategoryController::class, 'allCategorie
 Route::get('/all-products', [ProductController::class, 'allProducts']);
 Route::get('/shop-products/{shopId}', [ProductController::class, 'shopProducts']);
 
-
 //
 // =========================
 // AUTHENTICATED ROUTES
@@ -61,29 +60,27 @@ Route::get('/shop-products/{shopId}', [ProductController::class, 'shopProducts']
 
 Route::middleware('auth:sanctum')->group(function () {
 
-   //
-// =========================
-// CUSTOMER ROUTES
-// =========================
-//
+    //
+    // =========================
+    // CUSTOMER ROUTES
+    // =========================
+    //
 
-// CREATE SHOP
-Route::middleware('role:customer')->group(function () {
+    Route::middleware('role:customer')->group(function () {
 
-    Route::post('/shops', [ShopController::class, 'store']);
+        // CREATE SHOP
+        Route::post('/shops', [ShopController::class, 'store']);
+    });
 
-});
+    //
+    // =========================
+    // ORDERS (ALL AUTH USERS)
+    // =========================
+    //
 
+    Route::post('/checkout', [OrderController::class, 'checkout']);
 
-// =========================
-// ORDERS (ALL AUTH USERS)
-// =========================
-
-Route::post('/checkout', [OrderController::class, 'checkout']);
-
-Route::get('/my-orders', [OrderController::class, 'myOrders']);
-
-
+    Route::get('/my-orders', [OrderController::class, 'myOrders']);
 
     //
     // =========================
@@ -97,46 +94,33 @@ Route::get('/my-orders', [OrderController::class, 'myOrders']);
         // SHOPS
         //
 
-        // UPDATE SHOP
         Route::put('/shops/{id}', [ShopController::class, 'update']);
 
-        // DELETE SHOP
         Route::delete('/shops/{id}/delete', [ShopController::class, 'deleteShop']);
-
-
 
         //
         // PRODUCTS
         //
 
-        // CREATE PRODUCT
         Route::post('/products', [ProductController::class, 'store']);
 
-        // UPDATE PRODUCT
         Route::put('/products/{id}', [ProductController::class, 'update']);
 
-        // DELETE PRODUCT
         Route::delete('/products/{id}', [ProductController::class, 'delete']);
 
-
-
         //
         // SELLER ORDERS
         //
 
-        // SELLER ORDERS
         Route::get(
             '/seller-orders',
             [SellerOrderController::class, 'sellerOrders']
         );
 
-        // UPDATE SELLER ORDER ITEM STATUS
         Route::put(
             '/seller/order-item/{id}/status',
             [SellerOrderController::class, 'updateStatus']
         );
-
-
 
         //
         // ACTIVE + HISTORY
@@ -147,19 +131,104 @@ Route::get('/my-orders', [OrderController::class, 'myOrders']);
         Route::get('/order-history', [OrderController::class, 'orderHistory']);
     });
 
-
-
-
     //
     // =========================
     // ADMIN + SUPER ADMIN
     // =========================
     //
 
-    Route::middleware('role:admin|super-admin')->group(function () {
+    Route::middleware('role:admin|super_admin')->group(function () {
 
         //
+        // =========================
+        // ADMIN CREATE SELLER
+        // =========================
+        //
+
+        Route::post(
+            '/admin/create-seller',
+            [ShopController::class, 'adminCreateSeller']
+        );
+
+        //
+        // =========================
+        // USERS MANAGEMENT
+        // =========================
+        //
+
+        // ALL USERS
+        Route::get('/users', [UserController::class, 'index']);
+
+        // ALL ROLES
+        Route::get('/roles', [UserController::class, 'roles']);
+
+        // CREATE USER
+        Route::post('/users', [UserController::class, 'store']);
+
+        // UPDATE USER
+        Route::put('/users/{id}', [UserController::class, 'update']);
+
+        // DELETE USER
+        Route::delete('/users/{id}', [UserController::class, 'destroy']);
+
+        //
+        // =========================
+        // ROLE MANAGEMENT
+        // =========================
+        //
+
+        // ALL ROLES
+        Route::get(
+            '/roles-management',
+            [RoleController::class, 'index']
+        );
+
+        // CREATE ROLE
+        Route::post(
+            '/roles-management',
+            [RoleController::class, 'store']
+        );
+
+        // UPDATE ROLE
+        Route::put(
+            '/roles-management/{id}',
+            [RoleController::class, 'update']
+        );
+
+        // DELETE ROLE
+        Route::delete(
+            '/roles-management/{id}',
+            [RoleController::class, 'destroy']
+        );
+
+        //
+        // =========================
+        // PERMISSIONS MANAGEMENT
+        // =========================
+        //
+
+        // DROPDOWN ROLES
+        Route::get(
+            '/permission-roles',
+            [RoleController::class, 'getRoles']
+        );
+
+        // GET ALL PERMISSIONS
+        Route::get(
+            '/permissions',
+            [PermissionController::class, 'getPermissions']
+        );
+
+        // ASSIGN PERMISSIONS
+        Route::post(
+            '/assign-permissions',
+            [PermissionController::class, 'assignPermissions']
+        );
+
+        //
+        // =========================
         // RICE CATEGORY STATUS
+        // =========================
         //
 
         Route::put(
@@ -167,33 +236,24 @@ Route::get('/my-orders', [OrderController::class, 'myOrders']);
             [RiceCategoryController::class, 'updateStatus']
         );
 
-        Route::post(
-             '/admin/create-seller',
-              [ShopController::class, 'adminCreateSeller']
-        );
-
-
-
         //
+        // =========================
         // SHOPS
+        // =========================
         //
 
-        // PENDING SHOPS
         Route::get('/pending-shops', [ShopController::class, 'pendingShops']);
 
-        // APPROVED SHOPS
         Route::get('/approved-shops', [ShopController::class, 'approvedShops']);
 
-        // APPROVE SHOP
         Route::post('/shops/{id}/approve', [ShopController::class, 'approve']);
 
-        // REJECT SHOP
         Route::delete('/shops/{id}', [ShopController::class, 'reject']);
 
-
-
         //
+        // =========================
         // ADMIN ORDERS
+        // =========================
         //
 
         Route::get('/admin/orders', [OrderController::class, 'adminOrders']);
@@ -203,31 +263,45 @@ Route::get('/my-orders', [OrderController::class, 'myOrders']);
             [OrderController::class, 'adminUpdateOrderStatus']
         );
 
-        // GENERAL ORDER STATUS UPDATE
         Route::put(
             '/orders/{id}/status',
             [OrderController::class, 'updateStatus']
         );
     });
-
 });
-      // routes for all dashboards 
+
+//
+// =========================
+// DASHBOARDS
+// =========================
+//
+
 Route::middleware('auth:sanctum')->group(function () {
 
-    // CUSTOMER DASHBOARD
-    Route::get('/customer/dashboard', [DashboardController::class, 'customerDashboard']);
+    Route::get(
+        '/customer/dashboard',
+        [DashboardController::class, 'customerDashboard']
+    );
 
-    // SELLER DASHBOARD
-    Route::get('/seller/dashboard', [DashboardController::class, 'sellerDashboard']);
+    Route::get(
+        '/seller/dashboard',
+        [DashboardController::class, 'sellerDashboard']
+    );
 
-    // ADMIN DASHBOARD
-    Route::get('/admin/dashboard', [DashboardController::class, 'adminDashboard']);
+    Route::get(
+        '/admin/dashboard',
+        [DashboardController::class, 'adminDashboard']
+    );
 });
 
+//
+// =========================
+// NOTIFICATIONS
+// =========================
+//
 
-    Route::middleware('auth:sanctum')->group(function () {
+Route::middleware('auth:sanctum')->group(function () {
 
-    // NOTIFICATIONS
     Route::get(
         '/notifications',
         [NotificationController::class, 'myNotifications']
@@ -237,5 +311,4 @@ Route::middleware('auth:sanctum')->group(function () {
         '/notifications/{id}/read',
         [NotificationController::class, 'markAsRead']
     );
-
 });
