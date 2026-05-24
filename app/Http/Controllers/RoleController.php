@@ -22,7 +22,7 @@ class RoleController extends Controller
                 'name' => $role->name,
                 'guard_name' => $role->guard_name,
 
-                // users count
+                // USERS COUNT
                 'users_count' => $role->users()->count(),
             ];
         });
@@ -62,7 +62,7 @@ class RoleController extends Controller
             'name' => 'required',
         ]);
 
-        $role = Role::findById($id);
+        $role = Role::findOrFail($id);
 
         $role->update([
             'name' => $request->name,
@@ -80,7 +80,7 @@ class RoleController extends Controller
 
     public function destroy($id)
     {
-        $role = Role::findById($id);
+        $role = Role::findOrFail($id);
 
         $role->delete();
 
@@ -91,7 +91,7 @@ class RoleController extends Controller
     }
 
     // =========================
-    // DROPDOWN ROLES
+    // GET ROLES FOR DROPDOWN
     // =========================
 
     public function getRoles()
@@ -99,5 +99,40 @@ class RoleController extends Controller
         return response()->json(
             Role::select('id', 'name')->get()
         );
+    }
+
+    // =========================
+    // GET ALL PERMISSIONS
+    // =========================
+
+    public function permissions()
+    {
+        return response()->json(
+            \Spatie\Permission\Models\Permission::select(
+                'id',
+                'name'
+            )->get()
+        );
+    }
+
+    // =========================
+    // ASSIGN PERMISSIONS
+    // =========================
+
+    public function assignPermissions(Request $request)
+    {
+        $request->validate([
+            'role_id' => 'required|exists:roles,id',
+            'permissions' => 'required|array',
+        ]);
+
+        $role = Role::findOrFail($request->role_id);
+
+        $role->syncPermissions($request->permissions);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Permissions assigned successfully',
+        ]);
     }
 }

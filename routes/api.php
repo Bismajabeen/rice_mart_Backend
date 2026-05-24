@@ -218,6 +218,11 @@ Route::middleware('auth:sanctum')->group(function () {
             '/permissions',
             [PermissionController::class, 'getPermissions']
         );
+        // GET ROLE PERMISSIONS
+        Route::get(
+           '/roles-management/{id}/permissions',
+           [PermissionController::class, 'getRolePermissions']
+        );
 
         // ASSIGN PERMISSIONS
         Route::post(

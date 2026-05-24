@@ -8,7 +8,10 @@ use Spatie\Permission\Models\Permission;
 
 class PermissionController extends Controller
 {
+    // =========================
     // GET ALL PERMISSIONS
+    // =========================
+
     public function getPermissions()
     {
         return response()->json(
@@ -16,7 +19,28 @@ class PermissionController extends Controller
         );
     }
 
-    // ASSIGN PERMISSIONS TO ROLE
+    // =========================
+    // GET ROLE PERMISSIONS
+    // =========================
+
+      public function getRolePermissions($id)
+    {
+       $role = Role::findOrFail($id);
+
+      return response()->json([
+        'permissions' => $role->permissions->map(function ($permission) {
+            return [
+                'id' => $permission->id,
+                'name' => $permission->name,
+            ];
+        }),
+     ]);
+    }
+
+    // =========================
+    // ASSIGN PERMISSIONS
+    // =========================
+
     public function assignPermissions(Request $request)
     {
         $request->validate([
@@ -24,15 +48,14 @@ class PermissionController extends Controller
             'permissions' => 'required|array',
         ]);
 
-        $role = Role::findById($request->role_id);
+        // IMPORTANT FIX
+        $role = Role::findOrFail($request->role_id);
 
-        $permissions = Permission::whereIn('id', $request->permissions)
-            ->pluck('name');
-
-        $role->syncPermissions($permissions);
+        $role->syncPermissions($request->permissions);
 
         return response()->json([
-            'message' => 'Permissions assigned successfully'
+            'success' => true,
+            'message' => 'Permissions assigned successfully',
         ]);
     }
 }
