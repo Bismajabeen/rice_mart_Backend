@@ -8,7 +8,7 @@ use App\Models\OrderItem;
 class SellerOrderController extends Controller
 {
     // =========================
-    // SELLER ORDERS (GROUPED)
+    // SELLER ORDERS
     // =========================
     public function sellerOrders(Request $request)
     {
@@ -23,21 +23,19 @@ class SellerOrderController extends Controller
             ], 404);
         }
 
-        // GET ONLY THIS SELLER'S ITEMS
+        // ONLY THIS SELLER'S ITEMS
         $items = OrderItem::with([
-                'order',
-                'product'
+                'order.user',
+                'product',
+                'shop'
             ])
             ->where('shop_id', $shop->id)
             ->latest()
             ->get();
 
-        // GROUP BY ORDER ID (IMPORTANT FOR MARKETPLACE)
-        $grouped = $items->groupBy('order_id');
-
         return response()->json([
             'success' => true,
-            'orders' => $grouped
+            'orders' => $items
         ]);
     }
 

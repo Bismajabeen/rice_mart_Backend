@@ -158,12 +158,6 @@ class OrderController extends Controller
         $order->status = $status;
         $order->save();
 
-        // OPTIONAL: sync all items too
-        foreach ($order->items as $item) {
-            $item->status = $status;
-            $item->save();
-        }
-
         return response()->json([
             'success' => true,
             'message' => 'Order status updated successfully',
@@ -202,16 +196,16 @@ public function activeOrders(Request $request)
 // =========================
 // ORDER HISTORY
 // =========================
-public function orderHistory(Request $request)
-{
-    $user = $request->user();
+ public function orderHistory(Request $request)
+  {
+     $user = $request->user();
 
-    $orders = Order::with('items.product', 'items.shop')
+     $orders = Order::with('items.product', 'items.shop')
         ->where('user_id', $user->id)
         ->latest()
         ->get();
 
-    $filtered = $orders->filter(function ($order) {
+     $filtered = $orders->filter(function ($order) {
 
         $items = $order->items;
 
@@ -219,69 +213,164 @@ public function orderHistory(Request $request)
         return $items->every(function ($item) {
             return in_array($item->status, ['delivered', 'cancelled']);
         });
-    });
+     });
 
-    return response()->json([
+     return response()->json([
         'success' => true,
         'orders' => $filtered->values()
-    ]);
-}
+      ]);
+   }
 
-// ADMIN: GET ALL ORDERS
-public function adminOrders()
-{
-    $orders = Order::with([
+ // ADMIN: GET ALL ORDERS
+ public function adminOrders()
+    {
+     $orders = Order::with([
         'user',
         'items.product',
         'items.shop'
-    ])
-    ->latest()
-    ->get();
+      ])
+      ->latest()
+      ->get();
 
-    return response()->json([
+      return response()->json([
         'success' => true,
         'orders' => $orders
-    ]);
-}
-// ADD ADMIN STATUS UPDATE FUNCTION
-public function adminUpdateOrderStatus(Request $request, $id)
-{
-    $order = Order::with('items')->find($id);
+      ]);
+   }
+ // ADD ADMIN STATUS UPDATE FUNCTION
+    public function adminUpdateOrderStatus(Request $request, $id)
+    {
+       $order = Order::with('items')->find($id);
 
-    if (!$order) {
+       if (!$order) {
         return response()->json([
             'success' => false,
             'message' => 'Order not found'
         ], 404);
-    }
+     }
 
-    $status = $request->status;
+       $status = $request->status;
 
-    // VALID STATUSES (safety)
-    $allowed = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+      // VALID STATUSES (safety)
+      $allowed = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
 
-    if (!in_array($status, $allowed)) {
+      if (!in_array($status, $allowed)) {
         return response()->json([
             'success' => false,
             'message' => 'Invalid status'
         ], 400);
-    }
+     }
+ 
+       // UPDATE MASTER ORDER
+     $order->status = $status;
+     $order->save();
 
-    // UPDATE MASTER ORDER
-    $order->status = $status;
-    $order->save();
-
-    // SYNC ALL ITEMS
-    foreach ($order->items as $item) {
-        $item->status = $status;
-        $item->save();
-    }
-
-    return response()->json([
+     return response()->json([
         'success' => true,
         'message' => 'Order status updated by admin',
         'order' => $order
-    ]);
-}
+     ]);
+    }
+
+    // =========================
+  // ADMIN UPDATE ORDER ITEM STATUS
+ // =========================
+   public function adminUpdateOrderItemStatus(Request $request, $id)
+   {
+      $request->validate([
+        'status' => 'required'
+      ]);
+
+      $allowed = [
+        'pending',
+        'processing',
+        'shipped',
+        'delivered',
+        'cancelled'
+     ];
+
+     if (!in_array($request->status, $allowed)) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Invalid status'
+        ], 400);
+     }
+
+      // FIND ITEM
+      $item = OrderItem::with('order')->find($id);
+
+     if (!$item) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Order item not found'
+        ], 404);
+     }
+
+      $oldStatus = $item->status;
+
+     // UPDATE ITEM STATUS
+     $item->status = $request->status;
+     $item->save();
+
+     // RESTORE STOCK IF CANCELLED
+     if (
+        $request->status == 'cancelled'
+        && $oldStatus != 'cancelled'
+     ) {
+        $product = $item->product;
+
+        if ($product) {
+            $product->stock += $item->quantity;
+            $product->save();
+        }
+     }
+
+     // =========================
+     // AUTO UPDATE MASTER ORDER STATUS
+     // =========================
+
+     $order = $item->order;
+
+     $statuses = $order->items->pluck('status');
+
+     // ALL DELIVERED
+     if ($statuses->every(fn($s) => $s == 'delivered')) {
+
+        $order->status = 'delivered';
+     }
+
+     // ALL CANCELLED
+     elseif ($statuses->every(fn($s) => $s == 'cancelled')) {
+
+        $order->status = 'cancelled';
+     }
+
+     // ANY PROCESSING
+     elseif ($statuses->contains('processing')) {
+
+        $order->status = 'processing';
+     }
+
+     // ANY SHIPPED
+     elseif ($statuses->contains('shipped')) {
+
+        $order->status = 'shipped';
+     }
+
+     // DEFAULT
+     else {
+
+        $order->status = 'pending';
+     }
+
+      $order->save();
+
+     return response()->json([
+        'success' => true,
+        'message' => 'Order item status updated successfully',
+        'item' => $item,
+        'order_status' => $order->status
+      ]);
+   }
 
 }

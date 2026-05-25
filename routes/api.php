@@ -82,6 +82,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/my-orders', [OrderController::class, 'myOrders']);
 
+     // active-orders
+    Route::get('/active-orders', [OrderController::class, 'activeOrders']);
+    // /order-history
+    Route::get('/order-history', [OrderController::class, 'orderHistory']);
+
     //
     // =========================
     // SELLER ROUTES
@@ -121,14 +126,6 @@ Route::middleware('auth:sanctum')->group(function () {
             '/seller/order-item/{id}/status',
             [SellerOrderController::class, 'updateStatus']
         );
-
-        //
-        // ACTIVE + HISTORY
-        //
-
-        Route::get('/active-orders', [OrderController::class, 'activeOrders']);
-
-        Route::get('/order-history', [OrderController::class, 'orderHistory']);
     });
 
     //
@@ -139,11 +136,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::middleware('role:admin|super_admin')->group(function () {
 
-        //
-        // =========================
         // ADMIN CREATE SELLER
-        // =========================
-        //
 
         Route::post(
             '/admin/create-seller',
@@ -154,7 +147,6 @@ Route::middleware('auth:sanctum')->group(function () {
         // =========================
         // USERS MANAGEMENT
         // =========================
-        //
 
         // ALL USERS
         Route::get('/users', [UserController::class, 'index']);
@@ -262,6 +254,11 @@ Route::middleware('auth:sanctum')->group(function () {
         //
 
         Route::get('/admin/orders', [OrderController::class, 'adminOrders']);
+
+        Route::put(
+            '/admin/order-item/{id}/status',
+            [OrderController::class, 'adminUpdateOrderItemStatus']
+        );
 
         Route::put(
             '/admin/orders/{id}/status',
