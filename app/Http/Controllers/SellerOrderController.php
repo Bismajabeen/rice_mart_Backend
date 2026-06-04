@@ -8,13 +8,11 @@ use App\Models\OrderItem;
 class SellerOrderController extends Controller
 {
     // =========================
-    // SELLER ORDERS
+    // SELLER ORDERS LIST
     // =========================
     public function sellerOrders(Request $request)
     {
-        $user = $request->user();
-
-        $shop = $user->shop;
+        $shop = $request->user()->shop()->first();
 
         if (!$shop) {
             return response()->json([
@@ -23,12 +21,7 @@ class SellerOrderController extends Controller
             ], 404);
         }
 
-        // ONLY THIS SELLER'S ITEMS
-        $items = OrderItem::with([
-                'order.user',
-                'product',
-                'shop'
-            ])
+        $items = OrderItem::with(['order.user', 'product', 'shop'])
             ->where('shop_id', $shop->id)
             ->latest()
             ->get();
@@ -40,13 +33,11 @@ class SellerOrderController extends Controller
     }
 
     // =========================
-    // UPDATE ITEM STATUS
+    // UPDATE ORDER ITEM STATUS
     // =========================
     public function updateStatus(Request $request, $id)
     {
-        $user = $request->user();
-
-        $shop = $user->shop;
+        $shop = $request->user()->shop()->first();
 
         if (!$shop) {
             return response()->json([
@@ -55,21 +46,10 @@ class SellerOrderController extends Controller
             ], 404);
         }
 
-        // VALIDATE STATUS
         $request->validate([
-            'status' => 'required'
+            'status' => 'required|in:pending,processing,shipped,delivered,cancelled'
         ]);
 
-        $allowed = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
-
-        if (!in_array($request->status, $allowed)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid status'
-            ], 400);
-        }
-
-        // FIND ONLY SELLER'S ITEM
         $item = OrderItem::where('id', $id)
             ->where('shop_id', $shop->id)
             ->first();
@@ -77,32 +57,25 @@ class SellerOrderController extends Controller
         if (!$item) {
             return response()->json([
                 'success' => false,
-                'message' => 'Order item not found'
+                'message' => 'Order item not found or unauthorized'
             ], 404);
         }
 
         $oldStatus = $item->status;
 
-        // UPDATE STATUS
         $item->status = $request->status;
         $item->save();
 
-        // RESTORE STOCK IF CANCELLED
-        if (
-            $request->status == 'cancelled'
-            && $oldStatus != 'cancelled'
-        ) {
-            $product = $item->product;
-
-            if ($product) {
-                $product->stock += $item->quantity;
-                $product->save();
+        if ($request->status === 'cancelled' && $oldStatus !== 'cancelled') {
+            if ($item->product) {
+                $item->product->stock += $item->quantity;
+                $item->product->save();
             }
         }
 
         return response()->json([
             'success' => true,
-            'message' => 'Status updated successfully',
+            'message' => 'Order status updated successfully',
             'item' => $item
         ]);
     }

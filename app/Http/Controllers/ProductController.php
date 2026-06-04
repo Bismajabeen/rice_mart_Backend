@@ -10,121 +10,82 @@ use Illuminate\Http\Request;
 class ProductController extends Controller
 {
     // =========================
-    // ADD PRODUCT
+    // CREATE PRODUCT
     // =========================
     public function store(Request $request)
     {
         $request->validate([
-
             'shop_id' => 'required|exists:shops,id',
-
             'rice_category_id' => 'required|exists:rice_categories,id',
-
-            'name' => 'required',
-
+            'name' => 'required|string',
             'price' => 'required|numeric',
-
             'stock' => 'required|numeric',
         ]);
 
-        // =========================
-        // CHECK SHOP OWNERSHIP
-        // =========================
-
+        // ✅ Ownership check (shop must belong to seller)
         $shop = Shop::where('id', $request->shop_id)
             ->where('user_id', auth()->id())
             ->where('is_approved', 1)
             ->first();
 
         if (!$shop) {
-
             return response()->json([
-                'message' => 'Unauthorized shop access'
+                'message' => 'You are not allowed to use this shop'
             ], 403);
         }
 
-        // =========================
-        // CHECK CATEGORY ACTIVE
-        // =========================
-
+        // ✅ Category check
         $category = RiceCategory::where('id', $request->rice_category_id)
             ->where('status', true)
             ->first();
 
         if (!$category) {
-
             return response()->json([
-                'message' => 'Rice category inactive'
+                'message' => 'Invalid or inactive category'
             ], 400);
         }
 
-        // =========================
-        // CREATE PRODUCT
-        // =========================
-
         $product = Product::create([
-
             'user_id' => auth()->id(),
-
             'shop_id' => $request->shop_id,
-
             'rice_category_id' => $request->rice_category_id,
-
             'name' => $request->name,
-
             'price' => $request->price,
-
             'stock' => $request->stock,
-
             'image' => null,
         ]);
 
         return response()->json([
-
             'success' => true,
-
-            'message' => 'Product added successfully',
-
+            'message' => 'Product created successfully',
             'product' => $product,
         ]);
     }
 
     // =========================
-    // FETCH SHOP PRODUCTS
+    // SHOP PRODUCTS (PUBLIC)
     // =========================
     public function shopProducts($shopId)
     {
-        $products = Product::with([
-
-            'shop',
-            'riceCategory',
-
-        ])
+        $products = Product::with(['shop', 'riceCategory'])
             ->where('shop_id', $shopId)
-
             ->latest()
-
             ->get();
 
         return response()->json($products);
     }
 
     // =========================
-    // FETCH ALL PRODUCTS
+    // ALL PRODUCTS (PUBLIC)
     // =========================
     public function allProducts()
     {
-        $products = Product::with([
-
-            'shop',
-            'riceCategory',
-
-        ])
+        return Product::with(['shop', 'riceCategory'])
+        ->whereHas('shop', function ($query) {
+            $query->where('is_approved', 1);
+            })
             ->latest()
-
             ->get();
-
-        return response()->json($products);
     }
 
     // =========================
@@ -132,41 +93,32 @@ class ProductController extends Controller
     // =========================
     public function update(Request $request, $id)
     {
-        // =========================
-        // CHECK PRODUCT OWNERSHIP
-        // =========================
-
-        $product = Product::where('id', $id)
-            ->where('user_id', auth()->id())
-            ->first();
-
-        if (!$product) {
-
-            return response()->json([
-                'message' => 'Product not found or unauthorized'
-            ], 404);
-        }
-
         $request->validate([
-
             'price' => 'required|numeric',
-
             'stock' => 'required|numeric',
         ]);
 
+        // ✅ Ownership check through shop
+        $product = Product::where('id', $id)
+         ->whereHas('shop', function ($query) {
+            $query->where('user_id', auth()->id()); 
+            })
+            ->first();
+
+        if (!$product) {
+            return response()->json([
+                'message' => 'Unauthorized access to product'
+            ], 403);
+        }
+
         $product->update([
-
             'price' => $request->price,
-
             'stock' => $request->stock,
         ]);
 
         return response()->json([
-
             'success' => true,
-
             'message' => 'Product updated successfully',
-
             'product' => $product,
         ]);
     }
@@ -176,27 +128,23 @@ class ProductController extends Controller
     // =========================
     public function delete($id)
     {
-        // =========================
-        // CHECK PRODUCT OWNERSHIP
-        // =========================
-
+        // ✅ Ownership check through shop
         $product = Product::where('id', $id)
-            ->where('user_id', auth()->id())
+         ->whereHas('shop', function ($query) {
+            $query->where('user_id', auth()->id());
+            })
             ->first();
 
         if (!$product) {
-
             return response()->json([
-                'message' => 'Product not found or unauthorized'
-            ], 404);
+                'message' => 'Unauthorized access to product'
+            ], 403);
         }
 
         $product->delete();
 
         return response()->json([
-
             'success' => true,
-
             'message' => 'Product deleted successfully'
         ]);
     }

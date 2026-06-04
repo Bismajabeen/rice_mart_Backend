@@ -11,60 +11,146 @@ class AuthController extends Controller
     // =========================
     // REGISTER
     // =========================
+
     public function register(Request $request)
-{
-    $request->validate([
-        'name' => 'required',
-        'email' => 'required|email|unique:users',
-        'password' => 'required|min:6'
-    ]);
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'password' => 'required|min:6',
+        ]);
 
-    $user = User::create([
-        'name' => $request->name,
-        'email' => $request->email,
-        'password' => Hash::make($request->password),
-    ]);
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
 
-    // 🔥 Spatie role assignment
-    $user->assignRole('customer');
+            // IMPORTANT SECURITY FIX
+            'password' => Hash::make($request->password),
+        ]);
 
-    $token = $user->createToken('auth_token')->plainTextToken;
+        $user->assignRole('customer');
 
-    return response()->json([
-        'message' => 'User registered successfully',
-        'token' => $token,
-        'user' => $user,
-        'roles' => $user->getRoleNames(), // Spatie way
-    ]);
-}
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'User registered successfully',
+            'token' => $token,
+
+            'user' => $user,
+
+            'roles' => $user->getRoleNames()->values(),
+
+            'permissions' => $user
+                ->getAllPermissions()
+                ->pluck('name')
+                ->values(),
+
+            'has_shop' => false,
+            'shop_status' => 'none',
+            'shop' => null,
+        ], 201);
+    }
 
     // =========================
     // LOGIN
     // =========================
-    public function login(Request $request)
-{
-    $user = User::where('email', $request->email)->first();
 
-    if (!$user || !Hash::check($request->password, $user->password)) {
+    public function login(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required',
+        ]);
+
+        $user = User::where(
+            'email',
+            $request->email
+        )->first();
+
+        if (
+            !$user ||
+            !Hash::check(
+                $request->password,
+                $user->password
+            )
+        ) {
+            return response()->json([
+                'message' => 'Invalid credentials',
+            ], 401);
+        }
+
+        // Remove old tokens
+        $user->tokens()->delete();
+
+        $token = $user
+            ->createToken('auth_token')
+            ->plainTextToken;
+
+        $shop = $user->shop()->first();
+
         return response()->json([
-            'message' => 'Invalid credentials'
-        ], 401);
+            'message' => 'Login successful',
+
+            'token' => $token,
+
+            'user' => $user,
+
+            'roles' => $user->getRoleNames()->values(),
+
+            'permissions' => $user
+                ->getAllPermissions()
+                ->pluck('name')
+                ->values(),
+
+            'has_shop' => $shop !== null,
+
+            'shop_status' => $shop->status ?? 'none',
+
+            'shop' => $shop,
+        ]);
     }
 
-    $token = $user->createToken('auth_token')->plainTextToken;
+    // =========================
+    // ME
+    // =========================
 
-    // check approved shop
-    $shop = $user->shop()
-        ->where('is_approved', 1)
-        ->first();
+    public function me(Request $request)
+    {
+        $user = $request->user();
 
-    return response()->json([
-        'message' => 'Login successful',
-        'token' => $token,
-        'user' => $user,
-        'roles' => $user->getRoleNames(), // 🔥 Spatie roles
-        'has_shop' => $shop ? true : false,
-        'shop' => $shop,
-    ]);
-}
+        $shop = $user->shop()->first();
+
+        return response()->json([
+            'user' => $user,
+
+            'roles' => $user->getRoleNames()->values(),
+
+            'permissions' => $user
+                ->getAllPermissions()
+                ->pluck('name')
+                ->values(),
+
+            'has_shop' => $shop !== null,
+
+            'shop_status' => $shop->status ?? 'none',
+
+            'shop' => $shop,
+        ]);
+    }
+
+    // =========================
+    // LOGOUT
+    // =========================
+
+    public function logout(Request $request)
+    {
+        $request
+            ->user()
+            ->currentAccessToken()
+            ->delete();
+
+        return response()->json([
+            'message' => 'Logged out successfully',
+        ]);
+    }
 }

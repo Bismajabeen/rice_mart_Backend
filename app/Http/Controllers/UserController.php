@@ -5,9 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\User;
 use Spatie\Permission\Models\Role;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Hash;
-
-// use this controller for user management module 
 
 class UserController extends Controller
 {
@@ -18,7 +17,9 @@ class UserController extends Controller
     public function index()
     {
         return response()->json(
-            User::with('roles')->latest()->get()
+            User::with('roles')
+                ->latest()
+                ->get()
         );
     }
 
@@ -29,7 +30,7 @@ class UserController extends Controller
     public function roles()
     {
         return response()->json(
-            Role::all()
+            Role::select('id', 'name')->get()
         );
     }
 
@@ -40,15 +41,15 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required',
-            'email' => 'required|email|unique:users,email',
+            'name'     => 'required|string|max:255',
+            'email'    => 'required|email|unique:users,email',
             'password' => 'required|min:6',
-            'role' => 'required',
+            'role'     => 'required|exists:roles,name',
         ]);
 
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
+            'name'     => $request->name,
+            'email'    => $request->email,
             'password' => Hash::make($request->password),
         ]);
 
@@ -57,8 +58,8 @@ class UserController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'User created successfully',
-            'user' => $user->load('roles')
-        ]);
+            'user'    => $user->load('roles'),
+        ], 201);
     }
 
     // =========================
@@ -69,14 +70,26 @@ class UserController extends Controller
     {
         $user = User::findOrFail($id);
 
+        // Protect Super Admin
+        if ($user->hasRole('super_admin')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Super Admin cannot be modified',
+            ], 403);
+        }
+
         $request->validate([
-            'name' => 'required',
-            'email' => 'required|email',
-            'role' => 'required',
+            'name' => 'required|string|max:255',
+            'email' => [
+                'required',
+                'email',
+                Rule::unique('users')->ignore($user->id),
+            ],
+            'role' => 'required|exists:roles,name',
         ]);
 
         $user->update([
-            'name' => $request->name,
+            'name'  => $request->name,
             'email' => $request->email,
         ]);
 
@@ -85,6 +98,7 @@ class UserController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'User updated successfully',
+            'user'    => $user->load('roles'),
         ]);
     }
 
@@ -96,10 +110,27 @@ class UserController extends Controller
     {
         $user = User::findOrFail($id);
 
+        // Prevent deleting yourself
+        if (auth()->id() == $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You cannot delete your own account',
+            ], 403);
+        }
+
+        // Protect Super Admin
+        if ($user->hasRole('super_admin')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Super Admin cannot be deleted',
+            ], 403);
+        }
+
+        // Protect Admin
         if ($user->hasRole('admin')) {
             return response()->json([
                 'success' => false,
-                'message' => 'Admin cannot be deleted'
+                'message' => 'Admin cannot be deleted',
             ], 403);
         }
 

@@ -1,14 +1,12 @@
 <?php
 
 namespace App\Http\Controllers;
-use App\Models\User;
-use Illuminate\Support\Facades\Hash;
 
+use App\Models\User;
 use Illuminate\Http\Request;
 use App\Models\Shop;
 use App\Models\RiceCategory;
-use App\Http\Controllers\NotificationController;
-
+use Illuminate\Support\Facades\DB;
 
 class ShopController extends Controller
 {
@@ -25,50 +23,38 @@ class ShopController extends Controller
             'address' => 'required',
         ]);
 
-        // One shop per user
-        $existingShop = Shop::where('user_id', $request->user()->id)->exists();
-
-        if ($existingShop) {
+        if (Shop::where('user_id', $request->user()->id)->exists()) {
             return response()->json([
-                'success' => false,
                 'message' => 'You already have a shop'
             ], 400);
         }
 
         $shop = Shop::create([
             'user_id' => $request->user()->id,
-
             'cnic' => $request->cnic,
             'cnic_image' => $request->cnic_image ?? null,
-
             'shop_name' => $request->shop_name,
             'owner_name' => $request->owner_name,
-
             'phone' => $request->phone,
             'address' => $request->address,
-
             'description' => $request->description ?? null,
-
             'status' => 'pending',
             'is_approved' => 0,
         ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Shop submitted for approval',
             'shop' => $shop
         ]);
     }
 
     // =========================
-    // PENDING SHOPS (ADMIN)
+    // PENDING SHOPS
     // =========================
     public function pendingShops()
     {
         return response()->json(
-            Shop::where('is_approved', 0)
-                ->latest()
-                ->get()
+            Shop::latest()->where('is_approved', 0)->get()
         );
     }
 
@@ -78,157 +64,94 @@ class ShopController extends Controller
     public function approvedShops()
     {
         return response()->json(
-            Shop::where('is_approved', 1)
-                ->latest()
-                ->get()
+            Shop::latest()->where('is_approved', 1)->get()
         );
     }
 
-      // =========================
-      // APPROVE SHOP (ADMIN ONLY)
-      // CUSTOMER → SELLER
-      // =========================
-      public function approve($id)
-    {
-
-     $shop = Shop::findOrFail($id);
-
-      $shop->update([
-        'is_approved' => 1,
-        'status' => 'approved'
-      ]);
-
-      // GET SHOP OWNER
-     $user = $shop->user;
-
-     // ASSIGN SELLER ROLE
-     $user->removeRole('customer');
-     $user->assignRole('seller');
-
-     // CREATE NOTIFICATION
-     NotificationController::createNotification(
-
-        $shop->user_id,
-
-        'Shop Approved',
-
-        'Congratulations! Your shop has been approved.',
-
-        'shop_approved'
-     );
-
-     return response()->json([
-        'success' => true,
-        'shop' => $shop
-     ]);
-    }
-
-    // admin cretae shop 
-    public function adminCreateSeller(Request $request){
-       $request->validate([
-
-        // USER
-        'name' => 'required',
-        'email' => 'required|email|unique:users,email',
-        'password' => 'required|min:6',
-
-        // SHOP
-        'shop_name' => 'required',
-        'owner_name' => 'required',
-        'phone' => 'required',
-        'address' => 'required',
-        'cnic' => 'required',
-
-        // IMAGE
-        'cnic_image' => 'nullable',  // (change it to require )
-       ]);
-
-        // =========================
-        // CREATE USER
-       // =========================
-
-       $user = User::create([
-        'name' => $request->name,
-        'email' => $request->email,
-        'password' => Hash::make($request->password),
-         ]);
-
-        // =========================
-       // ASSIGN SELLER ROLE
-       // =========================
-
-      $user->assignRole('seller');
-
-       // =========================
-       // IMAGE UPLOAD
-      // =========================
-
-      $magePath = null;
-
-    //  if ($request->hasFile('cnic_image')) {
-
-    //      $imagePath = $request
-    //         ->file('cnic_image')
-    //         ->store('cnic_images', 'public');
-    //  }
-
-      // =========================
-       // CREATE SHOP
-      // =========================
-
-     $shop = Shop::create([
-
-        'user_id' => $user->id,
-
-        'shop_name' => $request->shop_name,
-        'owner_name' => $request->owner_name,
-        'phone' => $request->phone,
-        'address' => $request->address,
-
-        'cnic' => $request->cnic,
-        'cnic_image' => null,
-
-        'description' => $request->description,
-
-        // AUTO APPROVED
-        'is_approved' => 1,
-        'status' => 'approved',
-     ]);
-
-      return response()->json([
-        'success' => true,
-        'message' => 'Seller created successfully',
-        'user' => $user,
-        'shop' => $shop,
-     ]);
-    }
     // =========================
-    // REJECT SHOP (ADMIN ONLY)
+    // APPROVE SHOP
     // =========================
-    public function reject($id)
+    public function approve($id)
     {
         $shop = Shop::findOrFail($id);
 
-        $shop->delete();
+        $shop->update([
+            'is_approved' => 1,
+            'status' => 'approved'
+        ]);
+
+        $user = $shop->user;
+
+        if ($user) {
+            $user->syncRoles(['seller']);
+        }
 
         return response()->json([
             'success' => true,
-            'message' => 'Shop rejected and deleted'
+            'shop' => $shop
         ]);
     }
 
     // =========================
-    // UPDATE SHOP (RE-APPROVAL REQUIRED)
+    // ADMIN CREATE SELLER (SAFE TRANSACTION)
+    // =========================
+    public function adminCreateSeller(Request $request)
+    {
+        $request->validate([
+            'name' => 'required',
+            'email' => 'required|email|unique:users,email',
+            'password' => 'required|min:6',
+            'shop_name' => 'required',
+            'owner_name' => 'required',
+            'phone' => 'required',
+            'address' => 'required',
+            'cnic' => 'required',
+        ]);
+
+        return DB::transaction(function () use ($request) {
+
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => $request->password,
+            ]);
+
+            $user->syncRoles(['seller']);
+
+            $shop = Shop::create([
+                'user_id' => $user->id,
+                'shop_name' => $request->shop_name,
+                'owner_name' => $request->owner_name,
+                'phone' => $request->phone,
+                'address' => $request->address,
+                'cnic' => $request->cnic,
+                'cnic_image' => null,
+                'description' => $request->description,
+                'is_approved' => 1,
+                'status' => 'approved',
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'user' => $user,
+                'shop' => $shop,
+            ]);
+        });
+    }
+
+    // =========================
+    // UPDATE SHOP
     // =========================
     public function update(Request $request, $id)
     {
         $shop = Shop::findOrFail($id);
 
-        if ($shop->user_id != $request->user()->id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized'
-            ], 403);
+        if (
+            $shop->user_id != $request->user()->id &&
+            !$request->user()->hasRole('admin') &&
+            !$request->user()->hasRole('super_admin')
+        ) {
+            return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         $request->validate([
@@ -244,55 +167,54 @@ class ShopController extends Controller
             'phone' => $request->phone,
             'address' => $request->address,
             'description' => $request->description,
-
-            // BACK TO PENDING
             'status' => 'pending',
-            'is_approved' => 0,
         ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Shop updated and sent for re-approval',
             'shop' => $shop
         ]);
     }
 
     // =========================
-    // DELETE SHOP (SELLER → CUSTOMER)
+    // DELETE SHOP
     // =========================
     public function deleteShop(Request $request, $id)
     {
         $shop = Shop::findOrFail($id);
 
-        if ($shop->user_id != $request->user()->id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized'
-            ], 403);
+        if (
+            $shop->user_id != $request->user()->id &&
+            !$request->user()->hasRole('admin') &&
+            !$request->user()->hasRole('super_admin')
+        ) {
+            return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         $user = $shop->user;
 
         $shop->delete();
 
-        // ROLE REVERT
-        if ($user->hasRole('seller')) {
-            $user->removeRole('seller');
+        if ($user) {
+            $user->syncRoles(['customer']);
         }
-
-        $user->assignRole('customer');
 
         return response()->json([
             'success' => true,
-            'message' => 'Shop deleted and user reverted to customer'
+            'message' => 'Shop deleted'
         ]);
     }
 
     // =========================
-    // UPDATE RICE (KEEP YOUR LOGIC)
+    // UPDATE RICE (FIXED)
     // =========================
     public function updateRice(Request $request, $id)
     {
+        $request->validate([
+            'price' => 'required|numeric',
+            'stock' => 'required|numeric',
+        ]);
+
         $rice = RiceCategory::findOrFail($id);
 
         $rice->update([

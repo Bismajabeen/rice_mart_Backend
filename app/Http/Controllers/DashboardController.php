@@ -18,14 +18,22 @@ class DashboardController extends Controller
     {
         $user = $request->user();
 
-        $orders = Order::where('user_id', $user->id)->get();
+        $totalOrders = Order::where('user_id', $user->id)->count();
+
+        $activeOrders = Order::where('user_id', $user->id)
+            ->where('status', '!=', 'delivered')
+            ->count();
+
+        $completedOrders = Order::where('user_id', $user->id)
+            ->where('status', 'delivered')
+            ->count();
 
         return response()->json([
             'success' => true,
             'data' => [
-                'total_orders' => $orders->count(),
-                'active_orders' => $orders->where('status', '!=', 'delivered')->count(),
-                'completed_orders' => $orders->where('status', 'delivered')->count(),
+                'total_orders' => $totalOrders,
+                'active_orders' => $activeOrders,
+                'completed_orders' => $completedOrders,
             ]
         ]);
     }
@@ -46,20 +54,39 @@ class DashboardController extends Controller
             ], 404);
         }
 
-        $products = Product::where('shop_id', $shop->id)->get();
-        $orderItems = OrderItem::where('shop_id', $shop->id)->get();
+        $totalProducts = Product::where('shop_id', $shop->id)->count();
+
+        $activeProducts = Product::where('shop_id', $shop->id)
+            ->where('stock', '>', 0)
+            ->count();
+
+        $totalOrders = OrderItem::where('shop_id', $shop->id)
+            ->distinct('order_id')
+            ->count('order_id');
+
+        $pendingOrders = OrderItem::where('shop_id', $shop->id)
+            ->where('status', 'pending')
+            ->count();
+
+        $processingOrders = OrderItem::where('shop_id', $shop->id)
+            ->where('status', 'processing')
+            ->count();
+
+        $deliveredOrders = OrderItem::where('shop_id', $shop->id)
+            ->where('status', 'delivered')
+            ->count();
 
         return response()->json([
             'success' => true,
             'data' => [
-                'total_products' => $products->count(),
-                'active_products' => $products->where('stock', '>', 0)->count(),
+                'total_products' => $totalProducts,
+                'active_products' => $activeProducts,
 
-                'total_orders' => $orderItems->groupBy('order_id')->count(),
+                'total_orders' => $totalOrders,
 
-                'pending_orders' => $orderItems->where('status', 'pending')->count(),
-                'processing_orders' => $orderItems->where('status', 'processing')->count(),
-                'delivered_orders' => $orderItems->where('status', 'delivered')->count(),
+                'pending_orders' => $pendingOrders,
+                'processing_orders' => $processingOrders,
+                'delivered_orders' => $deliveredOrders,
             ]
         ]);
     }
@@ -67,32 +94,33 @@ class DashboardController extends Controller
     // =========================
     // ADMIN DASHBOARD
     // =========================
-  public function adminDashboard()
-{
-    $totalUsers = User::count();
+    public function adminDashboard()
+    {
+        $totalUsers = User::count();
 
-    $totalSellers = User::role('seller')->count();
-    $totalCustomers = User::role('customer')->count();
+        $totalSellers = User::role('seller')->count();
 
-    $totalShops = Shop::count();
+        $totalCustomers = User::role('customer')->count();
 
-    $totalOrders = Order::count();
+        $totalShops = Shop::count();
 
-    $totalRevenue = Order::sum('total_price');
+        $totalOrders = Order::count();
 
-    $activeProducts = Product::where('stock', '>', 0)->count();
+        $totalRevenue = Order::sum('total_price');
 
-    return response()->json([
-        'success' => true,
-        'data' => [
-            'total_users' => $totalUsers,
-            'total_sellers' => $totalSellers,
-            'total_customers' => $totalCustomers,
-            'total_shops' => $totalShops,
-            'total_orders' => $totalOrders,
-            'total_revenue' => $totalRevenue,
-            'active_products' => $activeProducts,
-        ]
-    ]);
-}
+        $activeProducts = Product::where('stock', '>', 0)->count();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'total_users' => $totalUsers,
+                'total_sellers' => $totalSellers,
+                'total_customers' => $totalCustomers,
+                'total_shops' => $totalShops,
+                'total_orders' => $totalOrders,
+                'total_revenue' => $totalRevenue,
+                'active_products' => $activeProducts,
+            ]
+        ]);
+    }
 }
