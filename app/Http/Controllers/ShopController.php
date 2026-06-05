@@ -227,4 +227,19 @@ class ShopController extends Controller
             'rice' => $rice
         ]);
     }
+
+    public function myShop(Request $request)
+   {
+       $shop = Shop::where('user_id', $request->user()->id)->first();
+
+      if (!$shop) {
+        return response()->json([
+            'message' => 'No shop found'
+        ], 404);
+        }
+
+      return response()->json([
+        'shop' => $shop
+        ]);
+    }
 }

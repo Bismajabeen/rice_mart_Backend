@@ -126,6 +126,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // SHOPS
     // =========================================
     //
+    Route::middleware('auth:sanctum')->get('/my-shop', [ShopController::class, 'myShop']);
 
     Route::put('/shops/{id}', [
         ShopController::class,
