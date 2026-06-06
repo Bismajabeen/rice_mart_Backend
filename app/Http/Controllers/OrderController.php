@@ -7,7 +7,6 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use Illuminate\Support\Facades\DB;
-use App\Http\Controllers\NotificationController;
 
 class OrderController extends Controller
 {
@@ -17,50 +16,108 @@ class OrderController extends Controller
     public function checkout(Request $request)
     {
         $user = $request->user();
-        $cartItems = $request->cart;
 
-        if (!is_array($cartItems) || count($cartItems) === 0) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cart is empty'
-            ], 400);
-        }
+        // =========================
+        // VALIDATION
+        // =========================
+        $request->validate([
+            'customer_name' => 'required|string|max:255',
+            'phone' => 'required|string|max:20',
+            'city' => 'nullable|string|max:100',
+            'address' => 'required|string',
+
+            'payment_method' => 'required|in:easypaisa,jazzcash,card',
+
+            'cart' => 'required|array|min:1',
+        ]);
+
+        $cartItems = $request->cart;
 
         DB::beginTransaction();
 
         try {
+
+            // =========================
+            // PAYMENT SCREENSHOT
+            // =========================
+            $paymentProof = null;
+
+            if (
+                in_array($request->payment_method, [
+                    'easypaisa',
+                    'jazzcash',
+                ])
+            ) {
+
+                $request->validate([
+                    'payment_proof' => 'nullable|image|max:2048',//for now ...
+                ]);
+
+              if ($request->hasFile('payment_proof')) {
+                 $paymentProof = $request->file('payment_proof')
+                 ->store('payments', 'public');
+                }
+            }
+
+            // =========================
+            // PAYMENT STATUS
+            // =========================
+            $paymentStatus =
+                $request->payment_method == 'card'
+                ? 'paid'
+                : 'pending';
+
+            // =========================
+            // CREATE ORDER
+            // =========================
             $order = Order::create([
                 'user_id' => $user->id,
+
+                'customer_name' => $request->customer_name,
+                'phone' => $request->phone,
+                'city' => $request->city ?? '',
+                'address' => $request->address,
+
+                'payment_method' => $request->payment_method,
+                'payment_proof' => $paymentProof,
+
                 'total_price' => 0,
+
                 'status' => 'pending',
-                'payment_status' => 'pending',
+
+                'payment_status' => $paymentStatus,
             ]);
 
             $total = 0;
 
+            // =========================
+            // PROCESS CART
+            // =========================
             foreach ($cartItems as $item) {
 
-                // =========================
                 // VALIDATION
-                // =========================
                 if (!isset($item['product_id'], $item['quantity'])) {
+
                     DB::rollBack();
+
                     return response()->json([
                         'success' => false,
-                        'message' => 'Invalid cart structure'
+                        'message' => 'Invalid cart structure',
                     ], 400);
                 }
 
                 if ($item['quantity'] <= 0) {
+
                     DB::rollBack();
+
                     return response()->json([
                         'success' => false,
-                        'message' => 'Quantity must be greater than 0'
+                        'message' => 'Quantity must be greater than 0',
                     ], 400);
                 }
 
                 // =========================
-                // PRODUCT FETCH (LOCKED)
+                // FETCH PRODUCT
                 // =========================
                 $product = Product::where('id', $item['product_id'])
                     ->whereHas('shop', function ($q) {
@@ -70,45 +127,63 @@ class OrderController extends Controller
                     ->first();
 
                 if (!$product) {
-                    DB::rollBack();
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Product not found or inactive shop'
-                    ], 400);
-                }
 
-                if ($item['quantity'] > $product->stock) {
                     DB::rollBack();
+
                     return response()->json([
                         'success' => false,
-                        'message' => $product->name . ' stock not available'
+                        'message' => 'Product not found or inactive shop',
                     ], 400);
                 }
 
                 // =========================
-                // CALCULATIONS
+                // STOCK CHECK
+                // =========================
+                if ($item['quantity'] > $product->stock) {
+
+                    DB::rollBack();
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => $product->name . ' stock not available',
+                    ], 400);
+                }
+
+                // =========================
+                // CALCULATE SUBTOTAL
                 // =========================
                 $subtotal = $product->price * $item['quantity'];
+
                 $total += $subtotal;
 
                 // =========================
-                // ORDER ITEM CREATE
+                // CREATE ORDER ITEM
                 // =========================
                 OrderItem::create([
                     'order_id' => $order->id,
+
                     'shop_id' => $product->shop_id,
+
                     'product_id' => $product->id,
+
                     'quantity' => $item['quantity'],
+
                     'price' => $product->price,
+
                     'status' => 'pending',
                 ]);
 
-                // reduce stock
+                // =========================
+                // REDUCE STOCK
+                // =========================
                 $product->decrement('stock', $item['quantity']);
             }
 
+            // =========================
+            // UPDATE TOTAL
+            // =========================
             $order->update([
-                'total_price' => $total
+                'total_price' => $total,
             ]);
 
             DB::commit();
@@ -116,15 +191,16 @@ class OrderController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Order placed successfully',
-                'order' => $order
+                'order' => $order,
             ]);
 
         } catch (\Exception $e) {
+
             DB::rollBack();
 
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
@@ -136,10 +212,14 @@ class OrderController extends Controller
     {
         return response()->json([
             'success' => true,
-            'orders' => Order::with('items.product', 'items.shop')
-                ->where('user_id', $request->user()->id)
-                ->latest()
-                ->get()
+
+            'orders' => Order::with(
+                'items.product',
+                'items.shop'
+            )
+            ->where('user_id', $request->user()->id)
+            ->latest()
+            ->get(),
         ]);
     }
 
@@ -150,13 +230,22 @@ class OrderController extends Controller
     {
         return response()->json([
             'success' => true,
-            'orders' => Order::with('items.product', 'items.shop')
-                ->where('user_id', $request->user()->id)
-                ->whereHas('items', function ($q) {
-                    $q->whereNotIn('status', ['delivered', 'cancelled']);
-                })
-                ->latest()
-                ->get()
+
+            'orders' => Order::with(
+                'items.product',
+                'items.shop'
+            )
+            ->where('user_id', $request->user()->id)
+
+            ->whereHas('items', function ($q) {
+                $q->whereNotIn('status', [
+                    'delivered',
+                    'cancelled',
+                ]);
+            })
+
+            ->latest()
+            ->get(),
         ]);
     }
 
@@ -167,13 +256,22 @@ class OrderController extends Controller
     {
         return response()->json([
             'success' => true,
-            'orders' => Order::with('items.product', 'items.shop')
-                ->where('user_id', $request->user()->id)
-                ->whereDoesntHave('items', function ($q) {
-                    $q->whereNotIn('status', ['delivered', 'cancelled']);
-                })
-                ->latest()
-                ->get()
+
+            'orders' => Order::with(
+                'items.product',
+                'items.shop'
+            )
+            ->where('user_id', $request->user()->id)
+
+            ->whereDoesntHave('items', function ($q) {
+                $q->whereNotIn('status', [
+                    'delivered',
+                    'cancelled',
+                ]);
+            })
+
+            ->latest()
+            ->get(),
         ]);
     }
 
@@ -182,36 +280,52 @@ class OrderController extends Controller
     // =========================
     public function updateStatus(Request $request, $id)
     {
-        $order = Order::where('id', $id)
+        $order = Order::with('items.product')
+            ->where('id', $id)
             ->where('user_id', $request->user()->id)
             ->first();
 
         if (!$order) {
+
             return response()->json([
                 'success' => false,
-                'message' => 'Order not found or unauthorized'
+                'message' => 'Order not found or unauthorized',
             ], 404);
         }
 
         $request->validate([
-            'status' => 'required|in:cancelled'
+            'status' => 'required|in:cancelled',
         ]);
 
-        // restore stock
+        // =========================
+        // UPDATE ITEMS + RESTORE STOCK
+        // =========================
         foreach ($order->items as $item) {
+
+            $item->update([
+                'status' => 'cancelled',
+            ]);
+
             if ($item->product) {
-                $item->product->increment('stock', $item->quantity);
+
+                $item->product->increment(
+                    'stock',
+                    $item->quantity
+                );
             }
         }
 
+        // =========================
+        // UPDATE ORDER
+        // =========================
         $order->update([
-            'status' => 'cancelled'
+            'status' => 'cancelled',
         ]);
 
         return response()->json([
             'success' => true,
             'message' => 'Order cancelled successfully',
-            'order' => $order
+            'order' => $order,
         ]);
     }
 
@@ -220,15 +334,28 @@ class OrderController extends Controller
     // =========================
     public function adminOrders(Request $request)
     {
-        if (!$request->user()->hasAnyRole(['admin', 'super_admin'])) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if (
+            !$request->user()->hasAnyRole([
+                'admin',
+                'super_admin',
+            ])
+        ) {
+
+            return response()->json([
+                'message' => 'Unauthorized',
+            ], 403);
         }
 
         return response()->json([
             'success' => true,
-            'orders' => Order::with(['user', 'items.product', 'items.shop'])
-                ->latest()
-                ->get()
+
+            'orders' => Order::with([
+                'user',
+                'items.product',
+                'items.shop',
+            ])
+            ->latest()
+            ->get(),
         ]);
     }
 
@@ -237,24 +364,32 @@ class OrderController extends Controller
     // =========================
     public function adminUpdateOrderStatus(Request $request, $id)
     {
-        if (!$request->user()->hasAnyRole(['admin', 'super_admin'])) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if (
+            !$request->user()->hasAnyRole([
+                'admin',
+                'super_admin',
+            ])
+        ) {
+
+            return response()->json([
+                'message' => 'Unauthorized',
+            ], 403);
         }
 
         $order = Order::findOrFail($id);
 
         $request->validate([
-            'status' => 'required|in:pending,processing,shipped,delivered,cancelled'
+            'status' => 'required|in:pending,processing,shipped,delivered,cancelled',
         ]);
 
         $order->update([
-            'status' => $request->status
+            'status' => $request->status,
         ]);
 
         return response()->json([
             'success' => true,
             'message' => 'Order status updated',
-            'order' => $order
+            'order' => $order,
         ]);
     }
 
@@ -263,43 +398,78 @@ class OrderController extends Controller
     // =========================
     public function adminUpdateOrderItemStatus(Request $request, $id)
     {
-        if (!$request->user()->hasAnyRole(['admin', 'super_admin'])) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if (
+            !$request->user()->hasAnyRole([
+                'admin',
+                'super_admin',
+            ])
+        ) {
+
+            return response()->json([
+                'message' => 'Unauthorized',
+            ], 403);
         }
 
         $request->validate([
-            'status' => 'required|in:pending,processing,shipped,delivered,cancelled'
+            'status' => 'required|in:pending,processing,shipped,delivered,cancelled',
         ]);
 
-        $item = OrderItem::with('order', 'product')->findOrFail($id);
+        $item = OrderItem::with(
+            'order',
+            'product'
+        )->findOrFail($id);
 
         $oldStatus = $item->status;
 
+        // =========================
+        // UPDATE ITEM STATUS
+        // =========================
         $item->update([
-            'status' => $request->status
+            'status' => $request->status,
         ]);
 
-        // restore stock if cancelled
-        if ($request->status === 'cancelled' && $oldStatus !== 'cancelled') {
+        // =========================
+        // RESTORE STOCK IF CANCELLED
+        // =========================
+        if (
+            $request->status === 'cancelled' &&
+            $oldStatus !== 'cancelled'
+        ) {
+
             if ($item->product) {
-                $item->product->increment('stock', $item->quantity);
+
+                $item->product->increment(
+                    'stock',
+                    $item->quantity
+                );
             }
         }
 
-        // sync order status
+        // =========================
+        // SYNC ORDER STATUS
+        // =========================
         $order = $item->order;
 
         $statuses = $order->items->pluck('status');
 
         if ($statuses->every(fn($s) => $s == 'delivered')) {
+
             $order->status = 'delivered';
+
         } elseif ($statuses->every(fn($s) => $s == 'cancelled')) {
+
             $order->status = 'cancelled';
+
         } elseif ($statuses->contains('processing')) {
+
             $order->status = 'processing';
+
         } elseif ($statuses->contains('shipped')) {
+
             $order->status = 'shipped';
+
         } else {
+
             $order->status = 'pending';
         }
 
@@ -308,8 +478,10 @@ class OrderController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Order item updated',
+
             'item' => $item,
-            'order_status' => $order->status
+
+            'order_status' => $order->status,
         ]);
     }
 }

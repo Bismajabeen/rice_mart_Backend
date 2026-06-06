@@ -9,10 +9,21 @@ class Order extends Model
 {
     protected $fillable = [
         'user_id',
+        'customer_name',
+        'phone',
+        'city',
+        'address',
+        'payment_method',
+        'payment_proof',
+        'notes',
         'total_price',
         'status',
         'payment_status',
-    ];
+        ];
+
+        protected $casts = [
+            'total_price' => 'float',
+        ];
 
     // =========================
     // ORDER ITEMS
