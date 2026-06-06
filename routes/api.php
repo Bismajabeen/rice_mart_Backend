@@ -16,6 +16,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
 // For testing image upload
 use App\Http\Controllers\TestImageController;
+use App\Http\Controllers\ChatController;
 
 //
 // =========================================
@@ -294,7 +295,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/approved-shops', [
         ShopController::class,
         'approvedShops'
-    ])->middleware('permission:view all shops');
+    ]);
+    // ->middleware('permission:view all shops');
 
     Route::post('/shops/{id}/approve', [
         ShopController::class,
@@ -383,6 +385,16 @@ Route::middleware([
         NotificationController::class,
         'markAsRead'
     ]);
+});
+Route::middleware('auth:sanctum')->group(function () {
+
+    // -- existing routes --
+
+    // Chat routes
+    Route::get('/conversations',                  [ChatController::class, 'index']);
+    Route::post('/conversations/start',           [ChatController::class, 'start']);
+    Route::get('/conversations/{id}/messages',    [ChatController::class, 'messages']);
+    Route::post('/conversations/{id}/messages',   [ChatController::class, 'send']);
 });
 
 // For testing image upload
