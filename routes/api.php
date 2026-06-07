@@ -388,3 +388,19 @@ Route::middleware([
 // For testing image upload
 
 Route::post('/test-image', [TestImageController::class, 'upload']);
+
+Route::middleware(['auth:sanctum'])->group(function () {
+
+    // =========================
+    // ADMIN PAYMENT MANAGEMENT
+    // =========================
+    Route::get(
+        '/admin/payments',
+        [OrderController::class, 'adminPayments']
+    );
+
+    Route::put(
+        '/admin/orders/{id}/payment-status',
+        [OrderController::class, 'updatePaymentStatus']
+    );
+});

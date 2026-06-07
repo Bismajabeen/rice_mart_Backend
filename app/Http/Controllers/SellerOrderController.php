@@ -47,7 +47,8 @@ class SellerOrderController extends Controller
         }
 
         $request->validate([
-            'status' => 'required|in:pending,processing,shipped,delivered,cancelled'
+              'status' => 'nullable|in:pending,processing,shipped,delivered,cancelled',
+              'payment_status' => 'nullable|in:pending,paid,rejected'
         ]);
 
         $item = OrderItem::where('id', $id)
@@ -62,21 +63,50 @@ class SellerOrderController extends Controller
         }
 
         $oldStatus = $item->status;
+        $oldPaymentStatus = $item->order->payment_status;
 
-        $item->status = $request->status;
+        // Update status if provided
+        if ($request->has('status')) {
+            $item->status = $request->status;
+            }
+        // Update payment status if provided
+        if ($request->has('payment_status')) {
+            $item->order->payment_status = $request->payment_status;
+            $item->order->save();
+        }
+
         $item->save();
 
-        if ($request->status === 'cancelled' && $oldStatus !== 'cancelled') {
+        if ($request->has('status') && $request->status === 'cancelled' && $oldStatus !== 'cancelled') {
             if ($item->product) {
                 $item->product->stock += $item->quantity;
                 $item->product->save();
             }
         }
 
-        return response()->json([
+          // =========================
+           // SYNC MAIN ORDER STATUS
+          // =========================
+         $order = $item->order;
+
+          $statuses = $order->items()->pluck('status');
+            if ($statuses->every(fn($s) => $s == 'delivered')) {
+             $order->status = 'delivered';
+            } elseif ($statuses->every(fn($s) => $s == 'cancelled')) {
+                $order->status = 'cancelled';
+            } elseif ($statuses->contains('processing')) {
+                $order->status = 'processing';
+            } elseif ($statuses->contains('shipped')) {
+                $order->status = 'shipped';
+            } else {
+                $order->status = 'pending';
+            }
+            $order->save();
+
+            return response()->json([
             'success' => true,
             'message' => 'Order status updated successfully',
             'item' => $item
-        ]);
-    }
+             ]);
+        }
 }

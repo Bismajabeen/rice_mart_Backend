@@ -484,4 +484,81 @@ class OrderController extends Controller
             'order_status' => $order->status,
         ]);
     }
+
+        // =========================
+    // ADMIN PAYMENT LIST
+    // =========================
+    public function adminPayments(Request $request)
+    {
+        if (
+            !$request->user()->hasAnyRole([
+                'admin',
+                'super_admin',
+            ])
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized',
+            ], 403);
+        }
+
+        $orders = Order::with([
+            'user',
+            'items.product',
+            'items.shop',
+        ])
+        ->whereNotNull('payment_method')
+        ->latest()
+        ->get();
+
+        return response()->json([
+            'success' => true,
+            'payments' => $orders,
+        ]);
+    }
+
+    // =========================
+    // ADMIN UPDATE PAYMENT STATUS
+    // =========================
+    public function updatePaymentStatus(
+        Request $request,
+        $id
+        ) {
+        if (
+            !$request->user()->hasAnyRole([
+                'admin',
+                'super_admin',
+            ])
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized',
+            ], 403);
+        }
+
+        $request->validate([
+            'payment_status' =>
+                'required|in:pending,paid,rejected',
+        ]);
+
+        $order = Order::find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        }
+
+        $order->payment_status =
+            $request->payment_status;
+
+        $order->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment status updated',
+            'order' => $order,
+        ]);
+    }
 }
