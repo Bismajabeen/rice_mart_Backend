@@ -21,10 +21,15 @@ class SellerOrderController extends Controller
             ], 404);
         }
 
-        $items = OrderItem::with(['order.user', 'product', 'shop'])
-            ->where('shop_id', $shop->id)
-            ->latest()
-            ->get();
+        $items = OrderItem::with([
+            'order.user',
+            'order.payment',
+            'product',
+            'shop'
+        ])
+        ->where('shop_id', $shop->id)
+        ->latest()
+        ->get();
 
         return response()->json([
             'success' => true,
@@ -33,7 +38,7 @@ class SellerOrderController extends Controller
     }
 
     // =========================
-    // UPDATE ORDER ITEM STATUS
+    // SELLER UPDATE ORDER ITEM
     // =========================
     public function updateStatus(Request $request, $id)
     {
@@ -47,66 +52,82 @@ class SellerOrderController extends Controller
         }
 
         $request->validate([
-              'status' => 'nullable|in:pending,processing,shipped,delivered,cancelled',
-              'payment_status' => 'nullable|in:pending,paid,rejected'
+            'status' => 'required|in:processing,shipped,delivered'
         ]);
 
-        $item = OrderItem::where('id', $id)
-            ->where('shop_id', $shop->id)
-            ->first();
+        $item = OrderItem::with([
+            'order',
+            'order.items'
+        ])
+        ->where('id', $id)
+        ->where('shop_id', $shop->id)
+        ->first();
 
         if (!$item) {
             return response()->json([
                 'success' => false,
-                'message' => 'Order item not found or unauthorized'
+                'message' => 'Order item not found'
             ], 404);
         }
 
-        $oldStatus = $item->status;
-        $oldPaymentStatus = $item->order->payment_status;
-
-        // Update status if provided
-        if ($request->has('status')) {
-            $item->status = $request->status;
-            }
-        // Update payment status if provided
-        if ($request->has('payment_status')) {
-            $item->order->payment_status = $request->payment_status;
-            $item->order->save();
-        }
-
-        $item->save();
-
-        if ($request->has('status') && $request->status === 'cancelled' && $oldStatus !== 'cancelled') {
-            if ($item->product) {
-                $item->product->stock += $item->quantity;
-                $item->product->save();
-            }
-        }
-
-          // =========================
-           // SYNC MAIN ORDER STATUS
-          // =========================
-         $order = $item->order;
-
-          $statuses = $order->items()->pluck('status');
-            if ($statuses->every(fn($s) => $s == 'delivered')) {
-             $order->status = 'delivered';
-            } elseif ($statuses->every(fn($s) => $s == 'cancelled')) {
-                $order->status = 'cancelled';
-            } elseif ($statuses->contains('processing')) {
-                $order->status = 'processing';
-            } elseif ($statuses->contains('shipped')) {
-                $order->status = 'shipped';
-            } else {
-                $order->status = 'pending';
-            }
-            $order->save();
-
+        // =========================
+        // PAYMENT MUST BE APPROVED
+        // =========================
+        if ($item->order->payment_status !== 'paid') {
             return response()->json([
-            'success' => true,
-            'message' => 'Order status updated successfully',
-            'item' => $item
-             ]);
+                'success' => false,
+                'message' => 'Payment not approved yet'
+            ], 400);
         }
+
+        // =========================
+        // PREVENT CHANGES AFTER DELIVERY
+        // =========================
+        if ($item->status === 'delivered') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Delivered order cannot be changed'
+            ], 400);
+        }
+
+        // =========================
+        // UPDATE ITEM STATUS
+        // =========================
+        $item->update([
+            'status' => $request->status
+        ]);
+
+        // =========================
+        // SYNC MAIN ORDER STATUS
+        // =========================
+        $order = $item->order;
+
+        $statuses = $order->items()->pluck('status');
+
+        if ($statuses->every(fn ($s) => $s === 'delivered')) {
+
+            $order->status = 'delivered';
+
+        } elseif ($statuses->contains('shipped')) {
+
+            $order->status = 'shipped';
+
+        } elseif ($statuses->contains('processing')) {
+
+            $order->status = 'processing';
+
+        } else {
+
+            $order->status = 'pending';
+        }
+
+        $order->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Order item status updated successfully',
+            'item' => $item->fresh(),
+            'order_status' => $order->status
+        ]);
+    }
 }

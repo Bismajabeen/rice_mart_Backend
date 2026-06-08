@@ -28,7 +28,7 @@ class OrderController extends Controller
             'address' => 'required|string',
 
             'payment_method' => 'required|in:easypaisa,jazzcash,card',
-            'transaction_id' => 'nullable|string|max:255',
+            'transaction_id' => 'required_if:payment_method,easypaisa,jazzcash|string|max:255',
 
             'cart' => 'required|array|min:1',
         ]);
@@ -64,16 +64,18 @@ class OrderController extends Controller
             // =========================
             // PAYMENT STATUS
             // =========================
-            $paymentStatus =
-                $request->payment_method == 'card'
-                ? 'paid'
-                : 'pending';
+            // $paymentStatus =
+            //     $request->payment_method == 'card'
+            //     ? 'paid'
+            //     : 'pending';
+            $paymentStatus = 'pending';
 
             // =========================
             // CREATE ORDER
             // =========================
             $order = Order::create([
                 'user_id' => $user->id,
+                'order_number' => 'ORD-' . now()->format('Ymd') . '-' . strtoupper(substr(uniqid(), -6)),
 
                 'customer_name' => $request->customer_name,
                 'phone' => $request->phone,
@@ -170,11 +172,6 @@ class OrderController extends Controller
 
                     'status' => 'pending',
                 ]);
-
-                // =========================
-                // REDUCE STOCK
-                // =========================
-                $product->decrement('stock', $item['quantity']);
             }
 
             // =========================
@@ -189,9 +186,10 @@ class OrderController extends Controller
                 Payment::create([
                     'order_id' => $order->id,
                     'payment_method' => $request->payment_method,
-                    'payment_type' => in_array($request->payment_method, ['easypaisa', 'jazzcash'])
-                        ? 'manual'
-                        : 'gateway',
+                    // 'payment_type' => in_array($request->payment_method, ['easypaisa', 'jazzcash'])
+                    //     ? 'manual'
+                    //     : 'gateway',
+                    'payment_type' => 'manual',
                     'amount' => $total,
                     'transaction_id' => $request->transaction_id,
                     'screenshot_path' => $paymentProof,
@@ -295,7 +293,7 @@ class OrderController extends Controller
     // =========================
     public function updateStatus(Request $request, $id)
     {
-        $order = Order::with('items.product')
+        $order = Order::with('items.product', 'payment')
             ->where('id', $id)
             ->where('user_id', $request->user()->id)
             ->first();
@@ -308,6 +306,14 @@ class OrderController extends Controller
             ], 404);
         }
 
+        if ($order->status !== 'pending') {
+            
+           return response()->json([
+            'success' => false,
+            'message' => 'Order cannot be cancelled now',
+        ], 400);
+        }
+
         $request->validate([
             'status' => 'required|in:cancelled',
         ]);
@@ -315,19 +321,12 @@ class OrderController extends Controller
         // // =========================
         // // UPDATE ITEMS + RESTORE STOCK
         // // =========================
-        // foreach ($order->items as $item) {
+        foreach ($order->items as $item) {
 
-        //     $item->update([
-        //         'status' => 'cancelled',
-        //     ]);
-        //     // if ($item->product) {
-
-        //     //     $item->product->increment(
-        //     //         'stock',
-        //     //         $item->quantity
-        //     //     );
-        //     // }
-        // }
+            $item->update([
+                'status' => 'cancelled',
+            ]);
+        }
 
         // =========================
         // UPDATE ORDER
@@ -391,11 +390,39 @@ class OrderController extends Controller
             ], 403);
         }
 
-        $order = Order::findOrFail($id);
+        $order = Order::with('items')->findOrFail($id);
 
         $request->validate([
             'status' => 'required|in:pending,processing,shipped,delivered,cancelled',
         ]);
+
+        if (
+            $order->payment_status !== 'paid' &&
+            $request->status !== 'cancelled') 
+        {
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment not approved yet'
+            ], 400);
+        }
+
+        if ($request->status === 'cancelled') {
+            
+        foreach ($order->items as $item) {
+            
+        if ($item->status !== 'cancelled' && $item->product) 
+        {
+            $item->product->increment(
+                'stock',
+                $item->quantity
+            );
+        }
+        
+        $item->update([
+            'status' => 'cancelled',
+        ]);
+        }
+        }
 
         $order->update([
             'status' => $request->status,
@@ -434,7 +461,17 @@ class OrderController extends Controller
             'product'
         )->findOrFail($id);
 
-        $oldStatus = $item->status;
+        // =========================
+        // PAYMENT CHECK
+        // =========================
+
+        if ($item->order->payment_status !== 'paid' && $request->status !== 'cancelled') {
+
+             return response()->json([
+                'success' => false,
+                'message' => 'Payment not approved yet'
+            ], 400);
+        }
 
         // =========================
         // UPDATE ITEM STATUS
@@ -448,7 +485,7 @@ class OrderController extends Controller
         // =========================
         $order = $item->order;
 
-        $statuses = $order->items->pluck('status');
+        $statuses = $order->items()->pluck('status');
 
         if ($statuses->every(fn($s) => $s == 'delivered')) {
 
@@ -483,9 +520,9 @@ class OrderController extends Controller
         ]);
     }
 
-        // =========================
-    // ADMIN PAYMENT LIST
     // =========================
+    // ADMIN PAYMENT LIST
+   // =========================
     public function adminPayments(Request $request)
     {
         if (
@@ -517,45 +554,156 @@ class OrderController extends Controller
     // =========================
     // ADMIN UPDATE PAYMENT STATUS
     // =========================
-    public function updatePaymentStatus(
-        Request $request,
-        $id
+    public function updatePaymentStatus(Request $request,$id) 
+    {
+       // =========================
+       // ADMIN CHECK
+       // =========================
+       if (
+        !$request->user()->hasAnyRole([
+            'admin',
+            'super_admin',
+        ])
         ) {
-        if (
-            !$request->user()->hasAnyRole([
-                'admin',
-                'super_admin',
-            ])
-        ) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized',
-            ], 403);
+        return response()->json([
+            'success' => false,
+            'message' => 'Unauthorized',
+        ], 403);
         }
 
-        $request->validate([
-            'payment_status' =>
-                'required|in:pending,paid,rejected',
+       // =========================
+       // VALIDATION
+       // =========================
+       $request->validate([
+        'payment_status' => 'required|in:paid,rejected',
+        'rejection_reason' =>'required_if:payment_status,rejected|string|max:1000',
         ]);
 
-        $order = Order::find($id);
+        DB::beginTransaction();
+        try {
 
-        if (!$order) {
+        // =========================
+        // GET PAYMENT
+        // =========================
+        $payment = Payment::with([
+            'order.items.product'
+        ])->find($id);
+
+        if (!$payment) {
             return response()->json([
                 'success' => false,
-                'message' => 'Order not found',
+                'message' => 'Payment not found',
             ], 404);
         }
 
-        $order->payment_status =
-            $request->payment_status;
+        $order = $payment->order;
 
-        $order->save();
+        // =========================
+        // PREVENT DOUBLE APPROVAL
+        // =========================
+        if (in_array($payment->status, ['paid', 'rejected'])) 
+        {
+
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment already processed',
+            ], 400);
+        }
+
+        // =========================
+        // PAYMENT APPROVED
+        // =========================
+        if ($request->payment_status === 'paid') {
+
+            // STOCK CHECK AGAIN
+            foreach ($order->items as $item) {
+
+                if (!$item->product) {
+
+                        DB::rollBack();
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Product not found',
+                    ], 400);
+                }
+
+                if ($item->quantity > $item->product->stock) {
+
+                    DB::rollBack();
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => $item->product->name .
+                            ' is out of stock',
+                    ], 400);
+                }
+            }
+
+            // =========================
+            // DEDUCT STOCK
+            // =========================
+            foreach ($order->items as $item) {
+
+                $item->product->decrement(
+                    'stock',
+                    $item->quantity
+                );
+            }
+
+            // =========================
+            // UPDATE PAYMENT
+            // =========================
+            $payment->update([
+                'status' => 'paid',
+                'verified_by' => $request->user()->id,
+                'verified_at' => now(),
+                'rejection_reason' => null,
+            ]);
+
+            // =========================
+            // UPDATE ORDER
+            // =========================
+            $order->update([
+                'payment_status' => 'paid',
+                'status' => 'processing',
+            ]);
+        }
+
+        // =========================
+        // PAYMENT REJECTED
+        // =========================
+        if ($request->payment_status === 'rejected') {
+
+            $payment->update([
+                'status' => 'rejected',
+                'verified_by' => $request->user()->id,
+                'verified_at' => now(),
+                'rejection_reason' => $request->rejection_reason,
+            ]);
+
+            $order->update([
+                'payment_status' => 'rejected',
+            ]);
+        }
+
+        DB::commit();
 
         return response()->json([
             'success' => true,
-            'message' => 'Payment status updated',
-            'order' => $order,
+            'message' => 'Payment status updated successfully',
+            'payment' => $payment->fresh(),
         ]);
+        } catch (\Exception $e) {
+
+        DB::rollBack();
+
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage(),
+        ], 500);
+        }
     }
 }
