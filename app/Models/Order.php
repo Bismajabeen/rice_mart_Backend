@@ -40,4 +40,12 @@ class Order extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    // =========================
+    // PAYMENT RELATION
+    // =========================
+    public function payment()
+    {
+        return $this->hasOne(Payment::class);
+    }
 }

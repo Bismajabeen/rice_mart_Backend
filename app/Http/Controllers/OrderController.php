@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use Illuminate\Support\Facades\DB;
+use App\Models\Payment;
 
 class OrderController extends Controller
 {
@@ -27,6 +28,7 @@ class OrderController extends Controller
             'address' => 'required|string',
 
             'payment_method' => 'required|in:easypaisa,jazzcash,card',
+            'transaction_id' => 'nullable|string|max:255',
 
             'cart' => 'required|array|min:1',
         ]);
@@ -50,7 +52,7 @@ class OrderController extends Controller
             ) {
 
                 $request->validate([
-                    'payment_proof' => 'nullable|image|max:2048',//for now ...
+                    'payment_proof' => 'required|image|max:2048',
                 ]);
 
               if ($request->hasFile('payment_proof')) {
@@ -77,10 +79,6 @@ class OrderController extends Controller
                 'phone' => $request->phone,
                 'city' => $request->city ?? '',
                 'address' => $request->address,
-
-                'payment_method' => $request->payment_method,
-                'payment_proof' => $paymentProof,
-
                 'total_price' => 0,
 
                 'status' => 'pending',
@@ -185,6 +183,20 @@ class OrderController extends Controller
             $order->update([
                 'total_price' => $total,
             ]);
+                // =========================            
+                // CREATE PAYMENT RECORD
+                // =========================
+                Payment::create([
+                    'order_id' => $order->id,
+                    'payment_method' => $request->payment_method,
+                    'payment_type' => in_array($request->payment_method, ['easypaisa', 'jazzcash'])
+                        ? 'manual'
+                        : 'gateway',
+                    'amount' => $total,
+                    'transaction_id' => $request->transaction_id,
+                    'screenshot_path' => $paymentProof,
+                    'status' => $paymentStatus,
+                ]); 
 
             DB::commit();
 
@@ -214,6 +226,7 @@ class OrderController extends Controller
             'success' => true,
 
             'orders' => Order::with(
+                'payment',
                 'items.product',
                 'items.shop'
             )
@@ -232,6 +245,7 @@ class OrderController extends Controller
             'success' => true,
 
             'orders' => Order::with(
+                'payment',
                 'items.product',
                 'items.shop'
             )
@@ -258,6 +272,7 @@ class OrderController extends Controller
             'success' => true,
 
             'orders' => Order::with(
+                'payment',
                 'items.product',
                 'items.shop'
             )
@@ -297,23 +312,22 @@ class OrderController extends Controller
             'status' => 'required|in:cancelled',
         ]);
 
-        // =========================
-        // UPDATE ITEMS + RESTORE STOCK
-        // =========================
-        foreach ($order->items as $item) {
+        // // =========================
+        // // UPDATE ITEMS + RESTORE STOCK
+        // // =========================
+        // foreach ($order->items as $item) {
 
-            $item->update([
-                'status' => 'cancelled',
-            ]);
+        //     $item->update([
+        //         'status' => 'cancelled',
+        //     ]);
+        //     // if ($item->product) {
 
-            if ($item->product) {
-
-                $item->product->increment(
-                    'stock',
-                    $item->quantity
-                );
-            }
-        }
+        //     //     $item->product->increment(
+        //     //         'stock',
+        //     //         $item->quantity
+        //     //     );
+        //     // }
+        // }
 
         // =========================
         // UPDATE ORDER
@@ -351,6 +365,7 @@ class OrderController extends Controller
 
             'orders' => Order::with([
                 'user',
+                'payment',
                 'items.product',
                 'items.shop',
             ])
@@ -429,23 +444,6 @@ class OrderController extends Controller
         ]);
 
         // =========================
-        // RESTORE STOCK IF CANCELLED
-        // =========================
-        if (
-            $request->status === 'cancelled' &&
-            $oldStatus !== 'cancelled'
-        ) {
-
-            if ($item->product) {
-
-                $item->product->increment(
-                    'stock',
-                    $item->quantity
-                );
-            }
-        }
-
-        // =========================
         // SYNC ORDER STATUS
         // =========================
         $order = $item->order;
@@ -502,18 +500,17 @@ class OrderController extends Controller
             ], 403);
         }
 
-        $orders = Order::with([
-            'user',
-            'items.product',
-            'items.shop',
+        $payments = Payment::with([
+            'order.user',
+            'order.items.product',
+            'order.items.shop',
         ])
-        ->whereNotNull('payment_method')
         ->latest()
         ->get();
 
         return response()->json([
             'success' => true,
-            'payments' => $orders,
+            'payments' => $payments,
         ]);
     }
 
