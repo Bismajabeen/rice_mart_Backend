@@ -400,7 +400,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     );
 
     Route::put(
-        '/admin/orders/{id}/payment-status',
+        '/admin/payments/{id}/status',
         [OrderController::class, 'updatePaymentStatus']
     );
 });
