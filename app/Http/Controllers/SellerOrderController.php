@@ -28,6 +28,12 @@ class SellerOrderController extends Controller
             'shop'
         ])
         ->where('shop_id', $shop->id)
+
+        // fetch only paid orders, so sellers won't see unpaid orders
+        ->whereHas('order', function ($q) {
+            $q->where('payment_status', 'paid');
+        })
+
         ->latest()
         ->get();
 
@@ -102,11 +108,15 @@ class SellerOrderController extends Controller
         // =========================
         $order = $item->order;
 
-        $statuses = $order->items()->pluck('status');
+       $statuses = $order->items()->pluck('status');
 
         if ($statuses->every(fn ($s) => $s === 'delivered')) {
 
             $order->status = 'delivered';
+
+        } elseif ($statuses->every(fn ($s) => $s === 'cancelled')) {
+            
+            $order->status = 'cancelled';
 
         } elseif ($statuses->contains('shipped')) {
 
