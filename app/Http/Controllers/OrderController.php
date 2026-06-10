@@ -368,15 +368,20 @@ class OrderController extends Controller
                 'items.product',
                 'items.shop',
             ])
+            -> whereNotIn('status', [
+                    'delivered',
+                    'cancelled',
+                ])
             ->latest()
             ->get(),
         ]);
     }
 
+
     // =========================
-    // ADMIN UPDATE ORDER STATUS
+    // ADMIN ORDER HISTORY
     // =========================
-    public function adminUpdateOrderStatus(Request $request, $id)
+    public function adminOrderHistory(Request $request)
     {
         if (
             !$request->user()->hasAnyRole([
@@ -390,50 +395,86 @@ class OrderController extends Controller
             ], 403);
         }
 
-        $order = Order::with('items')->findOrFail($id);
-
-        $request->validate([
-            'status' => 'required|in:pending,processing,shipped,delivered,cancelled',
-        ]);
-
-        if (
-            $order->payment_status !== 'paid' &&
-            $request->status !== 'cancelled') 
-        {
-            return response()->json([
-                'success' => false,
-                'message' => 'Payment not approved yet'
-            ], 400);
-        }
-
-        if ($request->status === 'cancelled') {
-            
-        foreach ($order->items as $item) {
-            
-        if ($item->status !== 'cancelled' && $item->product) 
-        {
-            $item->product->increment(
-                'stock',
-                $item->quantity
-            );
-        }
-        
-        $item->update([
-            'status' => 'cancelled',
-        ]);
-        }
-        }
-
-        $order->update([
-            'status' => $request->status,
-        ]);
-
         return response()->json([
             'success' => true,
-            'message' => 'Order status updated',
-            'order' => $order,
+
+            'orders' => Order::with([
+                'user',
+                'payment',
+                'items.product',
+                'items.shop',
+            ])
+            -> whereIn('status', [
+                    'delivered',
+                    'cancelled',
+                ])
+            ->latest()
+            ->get(),
         ]);
     }
+
+
+    // =========================
+    // ADMIN UPDATE ORDER STATUS
+    // =========================
+    // public function adminUpdateOrderStatus(Request $request, $id)
+    // {
+    //     if (
+    //         !$request->user()->hasAnyRole([
+    //             'admin',
+    //             'super_admin',
+    //         ])
+    //     ) {
+
+    //         return response()->json([
+    //             'message' => 'Unauthorized',
+    //         ], 403);
+    //     }
+
+    //     $order = Order::with('items')->findOrFail($id);
+
+    //     $request->validate([
+    //         'status' => 'required|in:pending,processing,shipped,delivered,cancelled',
+    //     ]);
+
+    //     if (
+    //         $order->payment_status !== 'paid' &&
+    //         $request->status !== 'cancelled') 
+    //     {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Payment not approved yet'
+    //         ], 400);
+    //     }
+
+    //     if ($request->status === 'cancelled') {
+            
+    //     foreach ($order->items as $item) {
+            
+    //     if ($item->status !== 'cancelled' && $item->product) 
+    //     {
+    //         $item->product->increment(
+    //             'stock',
+    //             $item->quantity
+    //         );
+    //     }
+        
+    //     $item->update([
+    //         'status' => 'cancelled',
+    //     ]);
+    //     }
+    //     }
+
+    //     $order->update([
+    //         'status' => $request->status,
+    //     ]);
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'Order status updated',
+    //         'order' => $order,
+    //     ]);
+    // }
 
     // =========================
     // ADMIN UPDATE ORDER ITEM

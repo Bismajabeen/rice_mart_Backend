@@ -317,15 +317,20 @@ Route::middleware('auth:sanctum')->group(function () {
         'adminOrders'
     ])->middleware('permission:view all orders');
 
+    Route::get('/admin/order-history',[
+        OrderController::class, 
+        'adminOrderHistory'
+    ])->middleware('permission:view all orders');
+
     Route::put('/admin/order-item/{id}/status', [
         OrderController::class,
         'adminUpdateOrderItemStatus'
     ])->middleware('permission:update any order status');
 
-    Route::put('/admin/orders/{id}/status', [
-        OrderController::class,
-        'adminUpdateOrderStatus'
-    ])->middleware('permission:update any order status');
+    // Route::put('/admin/orders/{id}/status', [
+    //     OrderController::class,
+    //     'adminUpdateOrderStatus'
+    // ])->middleware('permission:update any order status');
 
     Route::put('/orders/{id}/status', [
         OrderController::class,
