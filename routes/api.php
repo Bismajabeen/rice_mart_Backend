@@ -16,6 +16,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
 // For testing image upload
 use App\Http\Controllers\TestImageController;
+use App\Http\Controllers\ShopReviewController;
 
 //
 // =========================================
@@ -408,4 +409,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
         '/admin/payments/{id}/status',
         [OrderController::class, 'updatePaymentStatus']
     );
+
+    // shop review route
+
+    Route::post('/shop-review',[
+        ShopReviewController::class,
+        'store'
+    ]);
+
 });
