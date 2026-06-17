@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\RiceCategory;
 use App\Models\User;
+use App\Models\OrderItem;
 
 class Shop extends Model
 {
@@ -31,4 +32,10 @@ class Shop extends Model
    {
     return $this->belongsTo(User::class);
    }
+
+   // $shop->orderItems
+    public function orderItems()
+    {
+        return $this->hasMany(OrderItem::class);
+    }
 }

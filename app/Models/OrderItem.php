@@ -17,20 +17,26 @@ class OrderItem extends Model
     ];
  // product Relation
     public function product()
-{
-    return $this->belongsTo(Product::class);
-}
+    {
+        return $this->belongsTo(Product::class);
+    }
   // Shop realation 
-public function shop()
-{
-    return $this->belongsTo(Shop::class);
-}
+   public function shop()
+   {
+        return $this->belongsTo(Shop::class);
+   }
     // =========================
     // ORDER RELATION
     // =========================
     public function order()
     {
         return $this->belongsTo(Order::class);
+    }
+
+    // review relation
+    public function review()
+    {
+        return $this->hasOne(ShopReview::class);
     }
 
 }

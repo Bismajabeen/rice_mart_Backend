@@ -16,6 +16,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
 // For testing image upload
 use App\Http\Controllers\TestImageController;
+use App\Http\Controllers\ShopReviewController;
 use App\Http\Controllers\ChatController;
 
 //
@@ -319,15 +320,20 @@ Route::middleware('auth:sanctum')->group(function () {
         'adminOrders'
     ])->middleware('permission:view all orders');
 
+    Route::get('/admin/order-history',[
+        OrderController::class,
+        'adminOrderHistory'
+    ])->middleware('permission:view all orders');
+
     Route::put('/admin/order-item/{id}/status', [
         OrderController::class,
         'adminUpdateOrderItemStatus'
     ])->middleware('permission:update any order status');
 
-    Route::put('/admin/orders/{id}/status', [
-        OrderController::class,
-        'adminUpdateOrderStatus'
-    ])->middleware('permission:update any order status');
+    // Route::put('/admin/orders/{id}/status', [
+    //     OrderController::class,
+    //     'adminUpdateOrderStatus'
+    // ])->middleware('permission:update any order status');
 
     Route::put('/orders/{id}/status', [
         OrderController::class,
@@ -400,3 +406,27 @@ Route::middleware('auth:sanctum')->group(function () {
 // For testing image upload
 
 Route::post('/test-image', [TestImageController::class, 'upload']);
+
+Route::middleware(['auth:sanctum'])->group(function () {
+
+    // =========================
+    // ADMIN PAYMENT MANAGEMENT
+    // =========================
+    Route::get(
+        '/admin/payments',
+        [OrderController::class, 'adminPayments']
+    );
+
+    Route::put(
+        '/admin/payments/{id}/status',
+        [OrderController::class, 'updatePaymentStatus']
+    );
+
+    // shop review route
+
+    Route::post('/shop-review',[
+        ShopReviewController::class,
+        'store'
+    ]);
+
+});

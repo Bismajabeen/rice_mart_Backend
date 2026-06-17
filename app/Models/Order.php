@@ -9,10 +9,20 @@ class Order extends Model
 {
     protected $fillable = [
         'user_id',
+        'order_number',
+        'customer_name',
+        'phone',
+        'city',
+        'address',
+        'notes',
         'total_price',
         'status',
         'payment_status',
-    ];
+        ];
+
+        protected $casts = [
+            'total_price' => 'float',
+        ];
 
     // =========================
     // ORDER ITEMS
@@ -28,5 +38,13 @@ class Order extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    // =========================
+    // PAYMENT RELATION
+    // =========================
+    public function payment()
+    {
+        return $this->hasOne(Payment::class);
     }
 }

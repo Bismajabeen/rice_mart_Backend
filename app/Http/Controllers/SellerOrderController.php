@@ -21,10 +21,21 @@ class SellerOrderController extends Controller
             ], 404);
         }
 
-        $items = OrderItem::with(['order.user', 'product', 'shop'])
-            ->where('shop_id', $shop->id)
-            ->latest()
-            ->get();
+        $items = OrderItem::with([
+            'order.user',
+            'order.payment',
+            'product',
+            'shop'
+        ])
+        ->where('shop_id', $shop->id)
+
+        // fetch only paid orders, so sellers won't see unpaid orders
+        ->whereHas('order', function ($q) {
+            $q->where('payment_status', 'paid');
+        })
+
+        ->latest()
+        ->get();
 
         return response()->json([
             'success' => true,
@@ -33,7 +44,7 @@ class SellerOrderController extends Controller
     }
 
     // =========================
-    // UPDATE ORDER ITEM STATUS
+    // SELLER UPDATE ORDER ITEM
     // =========================
     public function updateStatus(Request $request, $id)
     {
@@ -47,36 +58,86 @@ class SellerOrderController extends Controller
         }
 
         $request->validate([
-            'status' => 'required|in:pending,processing,shipped,delivered,cancelled'
+            'status' => 'required|in:processing,shipped,delivered'
         ]);
 
-        $item = OrderItem::where('id', $id)
-            ->where('shop_id', $shop->id)
-            ->first();
+        $item = OrderItem::with([
+            'order',
+            'order.items'
+        ])
+        ->where('id', $id)
+        ->where('shop_id', $shop->id)
+        ->first();
 
         if (!$item) {
             return response()->json([
                 'success' => false,
-                'message' => 'Order item not found or unauthorized'
+                'message' => 'Order item not found'
             ], 404);
         }
 
-        $oldStatus = $item->status;
-
-        $item->status = $request->status;
-        $item->save();
-
-        if ($request->status === 'cancelled' && $oldStatus !== 'cancelled') {
-            if ($item->product) {
-                $item->product->stock += $item->quantity;
-                $item->product->save();
-            }
+        // =========================
+        // PAYMENT MUST BE APPROVED
+        // =========================
+        if ($item->order->payment_status !== 'paid') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment not approved yet'
+            ], 400);
         }
+
+        // =========================
+        // PREVENT CHANGES AFTER DELIVERY
+        // =========================
+        if ($item->status === 'delivered') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Delivered order cannot be changed'
+            ], 400);
+        }
+
+        // =========================
+        // UPDATE ITEM STATUS
+        // =========================
+        $item->update([
+            'status' => $request->status
+        ]);
+
+        // =========================
+        // SYNC MAIN ORDER STATUS
+        // =========================
+        $order = $item->order;
+
+       $statuses = $order->items()->pluck('status');
+
+        if ($statuses->every(fn ($s) => $s === 'delivered')) {
+
+            $order->status = 'delivered';
+
+        } elseif ($statuses->every(fn ($s) => $s === 'cancelled')) {
+            
+            $order->status = 'cancelled';
+
+        } elseif ($statuses->contains('shipped')) {
+
+            $order->status = 'shipped';
+
+        } elseif ($statuses->contains('processing')) {
+
+            $order->status = 'processing';
+
+        } else {
+
+            $order->status = 'pending';
+        }
+
+        $order->save();
 
         return response()->json([
             'success' => true,
-            'message' => 'Order status updated successfully',
-            'item' => $item
+            'message' => 'Order item status updated successfully',
+            'item' => $item->fresh(),
+            'order_status' => $order->status
         ]);
     }
 }
