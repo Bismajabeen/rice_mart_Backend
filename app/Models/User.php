@@ -16,11 +16,12 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'remember_token', // ← ADD KIYA
     ];
 
     protected $hidden = [
         'password',
-        'remember_token',
+        // 'remember_token', ← COMMENT KIYA
     ];
 
     protected $casts = [
@@ -31,8 +32,14 @@ class User extends Authenticatable
     public function isAdmin(): bool {
         return $this->role === 'admin';
     }
+
     public function products()
-{
-    return $this->hasMany(Product::class, 'seller_id');
-}
+    {
+        return $this->hasMany(Product::class, 'seller_id');
+    }
+
+    public function shops()
+    {
+        return $this->hasMany(Shop::class, 'seller_id');
+    }
 }

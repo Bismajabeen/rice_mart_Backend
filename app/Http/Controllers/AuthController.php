@@ -23,7 +23,7 @@ class AuthController extends Controller
             'username' => $request->username,
             'email'    => $request->email,
             'password' => Hash::make($request->password),
-            'role'     => 'user', // default role
+            'role'     => 'user',
         ]);
 
         return response()->json([
@@ -50,8 +50,10 @@ class AuthController extends Controller
             ], 401);
         }
 
+        // ← FIX: update ki jagah save use kiya
         $token = Str::random(60);
-        $user->update(['remember_token' => $token]);
+        $user->remember_token = $token;
+        $user->save();
 
         return response()->json([
             'message' => 'Login successful.',
@@ -65,7 +67,8 @@ class AuthController extends Controller
     {
         $user = User::where('remember_token', $request->bearerToken())->first();
         if ($user) {
-            $user->update(['remember_token' => null]);
+            $user->remember_token = null;
+            $user->save();
         }
         return response()->json(['message' => 'Logged out successfully.'], 200);
     }

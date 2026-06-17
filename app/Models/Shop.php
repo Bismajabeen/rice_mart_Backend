@@ -9,13 +9,17 @@ class Shop extends Model
     use HasFactory;
 
     protected $fillable = [
-        'seller_id',
-        'name',
-        'description',
-        'logo',
-        'address',
-        'status',
-    ];
+    'seller_id',
+    'name',
+    'owner_name',
+    'phone',
+    'address',
+    'description',
+    'logo',
+    'cnic_number',
+    'cnic_image',
+    'status',
+];
 
     public function seller()
     {

@@ -29,3 +29,5 @@ Route::post('/shops/{id}',                [ShopController::class, 'update']);
 Route::get('/seller/shop',                [ShopController::class, 'myShop']);
 Route::get('/admin/shops',                [ShopController::class, 'allShops']);
 Route::put('/admin/shops/{id}/status',    [ShopController::class, 'updateStatus']);
+Route::get('/admin/shops/pending',        [ShopController::class, 'pendingShops']);
+Route::get('/admin/shops/approved',       [ShopController::class, 'approvedShops']);

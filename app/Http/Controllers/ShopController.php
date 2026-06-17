@@ -40,29 +40,41 @@ class ShopController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 401);
         }
 
+        // Check agar shop pehle se exist karti hai
+        $existingShop = Shop::where('seller_id', $user->id)->first();
+        if ($existingShop) {
+            return response()->json([
+                'message' => 'Aap ki shop pehle se exist karti hai.',
+                'shop'    => $existingShop,
+            ], 400);
+        }
+
         $request->validate([
             'name'        => 'required|string|max:200',
+            'owner_name'  => 'required|string|max:200',
+            'phone'       => 'required|string|max:20',
+            'address'     => 'required|string',
             'description' => 'nullable|string',
-            'address'     => 'nullable|string',
-            'logo'        => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+            'cnic_number' => 'required|string|max:20',
         ]);
-
-        $logoPath = null;
-        if ($request->hasFile('logo')) {
-            $logoPath = $request->file('logo')->store('shops', 'public');
-        }
 
         $shop = Shop::create([
             'seller_id'   => $user->id,
             'name'        => $request->name,
-            'description' => $request->description,
+            'owner_name'  => $request->owner_name,
+            'phone'       => $request->phone,
             'address'     => $request->address,
-            'logo'        => $logoPath,
+            'description' => $request->description,
+            'cnic_number' => $request->cnic_number,
             'status'      => 'pending',
         ]);
 
+        // User ka role seller kar do
+        $user->role = 'seller';
+        $user->save();
+
         return response()->json([
-            'message' => 'Shop created! Admin approve karega.',
+            'message' => 'Shop request submit ho gayi! Admin approve karega.',
             'shop'    => $shop,
         ], 201);
     }
@@ -103,7 +115,10 @@ class ShopController extends Controller
             $shop->save();
         }
 
-        $shop->update($request->only(['name', 'description', 'address']));
+        $shop->update($request->only([
+            'name', 'description', 'address',
+            'owner_name', 'phone', 'cnic_number'
+        ]));
 
         return response()->json([
             'message' => 'Shop updated!',
@@ -118,23 +133,23 @@ class ShopController extends Controller
         return response()->json(['shops' => $shops], 200);
     }
 
-    // ── ADMIN: APPROVE / REJECT ───────────────────────────────
-    public function updateStatus(Request $request, $id)
-    {
-        $request->validate([
-            'status' => 'required|in:approved,rejected',
-        ]);
+    // ── ADMIN: PENDING SHOPS ──────────────────────────────
+public function pendingShops()
+{
+    $shops = Shop::with('seller:id,name')
+        ->where('status', 'pending')
+        ->latest()
+        ->get();
+    return response()->json(['shops' => $shops], 200);
+}
 
-        $shop = Shop::find($id);
-        if (!$shop) {
-            return response()->json(['message' => 'Shop not found.'], 404);
-        }
-
-        $shop->update(['status' => $request->status]);
-
-        return response()->json([
-            'message' => 'Shop status updated.',
-            'shop'    => $shop,
-        ], 200);
-    }
+// ── ADMIN: APPROVED SHOPS ─────────────────────────────
+public function approvedShops()
+{
+    $shops = Shop::with('seller:id,name')
+        ->where('status', 'approved')
+        ->latest()
+        ->get();
+    return response()->json(['shops' => $shops], 200);
+}
 }
