@@ -17,6 +17,7 @@ use App\Http\Controllers\PermissionController;
 // For testing image upload
 use App\Http\Controllers\TestImageController;
 use App\Http\Controllers\ShopReviewController;
+use App\Http\Controllers\ChatController;
 
 //
 // =========================================
@@ -417,4 +418,19 @@ Route::middleware(['auth:sanctum'])->group(function () {
         'store'
     ]);
 
+});
+
+// =========================================
+// CHAT ROUTES
+// =========================================
+
+Route::middleware('auth:sanctum')->group(function () {
+
+    // -- existing routes --
+
+    // Chat routes
+    Route::get('/conversations',                  [ChatController::class, 'index']);
+    Route::post('/conversations/start',           [ChatController::class, 'start']);
+    Route::get('/conversations/{id}/messages',    [ChatController::class, 'messages']);
+    Route::post('/conversations/{id}/messages',   [ChatController::class, 'send']);
 });
