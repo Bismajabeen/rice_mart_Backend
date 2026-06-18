@@ -144,12 +144,24 @@ public function pendingShops()
 }
 
 // ── ADMIN: APPROVED SHOPS ─────────────────────────────
-public function approvedShops()
+// ── ADMIN: APPROVE / REJECT ───────────────────────────────
+public function updateStatus(Request $request, $id)
 {
-    $shops = Shop::with('seller:id,name')
-        ->where('status', 'approved')
-        ->latest()
-        ->get();
-    return response()->json(['shops' => $shops], 200);
+    $request->validate([
+        'status' => 'required|in:approved,rejected',
+    ]);
+
+    $shop = Shop::find($id);
+    if (!$shop) {
+        return response()->json(['message' => 'Shop not found.'], 404);
+    }
+
+    $shop->status = $request->status;
+    $shop->save();
+
+    return response()->json([
+        'message' => 'Shop status updated.',
+        'shop'    => $shop,
+    ], 200);
 }
 }
