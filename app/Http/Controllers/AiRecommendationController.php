@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use App\Models\Product;
-class RecommendationController extends Controller
+class AiRecommendationController extends Controller
 {
     public function recommend(Request $request)
     {
