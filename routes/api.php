@@ -18,7 +18,7 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\TestImageController;
 use App\Http\Controllers\ShopReviewController;
 use App\Http\Controllers\ChatController;
-use App\Http\Controllers\RecommendationController;
+use App\Http\Controllers\AiRecommendationController;
 
 //
 // =========================================
@@ -437,4 +437,4 @@ Route::middleware(['auth:sanctum'])->group(function () {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // AI Recommendation (no auth required — public endpoint)
-Route::post('/ai-recommendation', [RecommendationController::class, 'recommend']);
+Route::post('/ai-recommendation', [AiRecommendationController::class, 'recommend']);

@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use App\Models\Product;
-
 class RecommendationController extends Controller
 {
     public function recommend(Request $request)
@@ -14,7 +13,6 @@ class RecommendationController extends Controller
         $request->validate([
             'query' => 'required|string|max:200',
         ]);
-
         $query = $request->input('query');
 
         // ── 1. Fetch products ──────────────────────────────────
@@ -59,7 +57,6 @@ When given a query about a rice type or dish, respond ONLY with a valid JSON obj
   },
   "related_keywords": ["keyword1", "keyword2"]
 }
-
 Be accurate, helpful, and keep responses in a friendly tone.
 PROMPT;
 
@@ -96,7 +93,6 @@ MSG;
                     'error' => 'OpenAI API error: ' . $response->body()
                 ], 500);
             }
-
             $content = $response->json()['choices'][0]['message']['content'] ?? '{}';
 
             // Strip markdown fences if present
@@ -154,7 +150,7 @@ MSG;
                     break;
                 }
             }
-        }
+             }
 
         return array_values($matched);
     }
