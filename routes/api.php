@@ -18,6 +18,7 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\TestImageController;
 use App\Http\Controllers\ShopReviewController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\RecommendationController;
 
 //
 // =========================================
@@ -430,3 +431,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     ]);
 
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADD THIS TO YOUR EXISTING routes/api.php
+// ─────────────────────────────────────────────────────────────────────────────
+
+// AI Recommendation (no auth required — public endpoint)
+Route::post('/ai-recommendation', [RecommendationController::class, 'recommend']);

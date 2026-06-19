@@ -180,7 +180,7 @@ class OrderController extends Controller
             $order->update([
                 'total_price' => $total,
             ]);
-                // =========================            
+                // =========================
                 // CREATE PAYMENT RECORD
                 // =========================
                 Payment::create([
@@ -194,7 +194,7 @@ class OrderController extends Controller
                     'transaction_id' => $request->transaction_id,
                     'screenshot_path' => $paymentProof,
                     'status' => $paymentStatus,
-                ]); 
+                ]);
 
             DB::commit();
 
@@ -307,7 +307,7 @@ class OrderController extends Controller
         }
 
         if ($order->status !== 'pending') {
-            
+
            return response()->json([
             'success' => false,
             'message' => 'Order cannot be cancelled now',
@@ -439,7 +439,7 @@ class OrderController extends Controller
 
     //     if (
     //         $order->payment_status !== 'paid' &&
-    //         $request->status !== 'cancelled') 
+    //         $request->status !== 'cancelled')
     //     {
     //         return response()->json([
     //             'success' => false,
@@ -448,17 +448,17 @@ class OrderController extends Controller
     //     }
 
     //     if ($request->status === 'cancelled') {
-            
+
     //     foreach ($order->items as $item) {
-            
-    //     if ($item->status !== 'cancelled' && $item->product) 
+
+    //     if ($item->status !== 'cancelled' && $item->product)
     //     {
     //         $item->product->increment(
     //             'stock',
     //             $item->quantity
     //         );
     //     }
-        
+
     //     $item->update([
     //         'status' => 'cancelled',
     //     ]);
@@ -595,7 +595,7 @@ class OrderController extends Controller
     // =========================
     // ADMIN UPDATE PAYMENT STATUS
     // =========================
-    public function updatePaymentStatus(Request $request,$id) 
+    public function updatePaymentStatus(Request $request,$id)
     {
        // =========================
        // ADMIN CHECK
@@ -642,7 +642,7 @@ class OrderController extends Controller
         // =========================
         // PREVENT DOUBLE APPROVAL
         // =========================
-        if (in_array($payment->status, ['paid', 'rejected'])) 
+        if (in_array($payment->status, ['paid', 'rejected']))
         {
 
             DB::rollBack();
