@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Mail\OtpMail;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use App\Mail\ResetPasswordOtpMail;
 
 class AuthController extends Controller
 {
@@ -138,7 +139,72 @@ class AuthController extends Controller
 
         return response()->json(['message' => 'OTP resent successfully']);
     }
+// =========================
+// FORGOT PASSWORD (Step 1: send OTP)
+// =========================
+public function forgotPassword(Request $request)
+{
+    $request->validate([
+        'email' => 'required|email',
+    ]);
 
+    $user = User::where('email', $request->email)->first();
+
+    if (!$user) {
+        return response()->json(['message' => 'No account found with this email'], 404);
+    }
+
+    $otp = random_int(100000, 999999);
+
+    $user->update([
+        'otp' => $otp,
+        'otp_expires_at' => now()->addMinutes(10),
+    ]);
+
+   Mail::to($user->email)->send(new ResetPasswordOtpMail($otp, $user->name));
+
+    return response()->json([
+        'message' => 'OTP sent to your email',
+        'email' => $user->email,
+    ], 200);
+}
+
+// =========================
+// RESET PASSWORD (Step 2: verify OTP + update password)
+// =========================
+public function resetPassword(Request $request)
+{
+    $request->validate([
+        'email' => 'required|email',
+        'otp' => 'required',
+        'password' => 'required|min:6',
+    ]);
+
+    $user = User::where('email', $request->email)->first();
+
+    if (!$user) {
+        return response()->json(['message' => 'User not found'], 404);
+    }
+
+    if ($user->otp != $request->otp) {
+        return response()->json(['message' => 'Invalid OTP'], 422);
+    }
+
+    if (now()->greaterThan($user->otp_expires_at)) {
+        return response()->json(['message' => 'OTP expired, please request a new one'], 422);
+    }
+
+    $user->update([
+        'password' => Hash::make($request->password),
+        'otp' => null,
+        'otp_expires_at' => null,
+    ]);
+
+    // Optional but good practice: log out old sessions after password reset
+    $user->tokens()->delete();
+
+    return response()->json(['message' => 'Password reset successful. Please login.']);
+}
     // =========================
     // LOGIN (now blocks unverified users)
     // =========================
