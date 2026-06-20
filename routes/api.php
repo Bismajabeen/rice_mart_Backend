@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ShopController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ChatController;
 
 // ── Auth Routes ───────────────────────────────────────────────
 Route::post('/register', [AuthController::class, 'register']);
@@ -23,11 +24,20 @@ Route::put('/admin/products/{id}/status', [ProductController::class, 'updateStat
 
 // ── Shop Routes ───────────────────────────────────────────────
 Route::get('/shops',                      [ShopController::class, 'index']);
-Route::get('/shops/{id}',                 [ShopController::class, 'show']);
 Route::post('/shops',                     [ShopController::class, 'store']);
-Route::post('/shops/{id}',                [ShopController::class, 'update']);
 Route::get('/seller/shop',                [ShopController::class, 'myShop']);
-Route::get('/admin/shops',                [ShopController::class, 'allShops']);
-Route::put('/admin/shops/{id}/status',    [ShopController::class, 'updateStatus']);
+
+// ← SPECIFIC ROUTES PEHLE
 Route::get('/admin/shops/pending',        [ShopController::class, 'pendingShops']);
 Route::get('/admin/shops/approved',       [ShopController::class, 'approvedShops']);
+Route::get('/admin/shops',                [ShopController::class, 'allShops']);
+Route::put('/admin/shops/{id}/status',    [ShopController::class, 'updateStatus']);
+
+// ← DYNAMIC ROUTES BAAD MEIN
+Route::get('/shops/{id}',                 [ShopController::class, 'show']);
+Route::post('/shops/{id}',                [ShopController::class, 'update']);
+// ── Chat Routes ───────────────────────────────────────────────
+Route::post('/chat/start',                    [ChatController::class, 'startConversation']);
+Route::get('/chat/conversations',             [ChatController::class, 'getConversations']);
+Route::get('/chat/messages/{conversationId}', [ChatController::class, 'getMessages']);
+Route::post('/chat/send',                     [ChatController::class, 'sendMessage']);
