@@ -22,11 +22,15 @@ class User extends Authenticatable
      *
      * @var list<string>
      */
-    protected $fillable = [
+   protected $fillable = [
     'name',
     'email',
-    'password'
+    'password',
+    'otp',
+    'otp_expires_at',
+    'is_verified',
 ];
+
 
     /**
      * The attributes that should be hidden for serialization.
@@ -36,6 +40,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+         'otp',
     ];
 
     /**
