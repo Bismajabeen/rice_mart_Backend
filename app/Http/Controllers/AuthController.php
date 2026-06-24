@@ -241,6 +241,10 @@ public function resetPassword(Request $request)
         ]);
     }
 
+    // =========================
+    // GET CURRENT USER (with roles, permissions, and shop status)
+    // =========================
+
     public function me(Request $request)
     {
         $user = $request->user();

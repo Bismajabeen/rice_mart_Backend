@@ -19,6 +19,7 @@ use App\Http\Controllers\TestImageController;
 use App\Http\Controllers\ShopReviewController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\AiRecommendationController;
+use App\Http\Controllers\Api\ProfileController;
 
 //
 // =========================================
@@ -48,6 +49,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
+
+    Route::put('/update-profile', [ProfileController::class, 'update']);
 });
 
 //
