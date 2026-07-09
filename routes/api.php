@@ -20,6 +20,8 @@ use App\Http\Controllers\ShopReviewController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\AiRecommendationController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\CityController;
+use App\Http\Controllers\Api\CourierChargeController;
 
 //
 // =========================================
@@ -425,6 +427,64 @@ Route::middleware(['auth:sanctum'])->group(function () {
         'store'
     ]);
 
+    //
+   // =========================================
+   // CITY MANAGEMENT
+   // =========================================
+   //
+
+   Route::get('/admin/cities', [
+       CityController::class,
+       'index'
+    ]);
+
+   Route::post('/admin/cities', [
+       CityController::class,
+       'store'
+    ]);
+
+   Route::put('/admin/cities/{id}', [
+      CityController::class,
+      'update'
+    ]);
+
+   Route::delete('/admin/cities/{id}', [
+      CityController::class,
+      'destroy'
+    ]);
+
+   //
+   // =========================================
+   // COURIER CHARGES MANAGEMENT
+   // =========================================
+   //
+
+   Route::get('/admin/courier-charges', [
+      CourierChargeController::class,
+      'index'
+    ]);
+
+   Route::post('/admin/courier-charges', [
+      CourierChargeController::class,
+      'store'
+    ]);
+
+   Route::put('/admin/courier-charges/{id}', [
+      CourierChargeController::class,
+      'update'
+    ]);
+
+   Route::delete('/admin/courier-charges/{id}', [
+       CourierChargeController::class,
+      'destroy'
+    ]);
+
+    // cities 
+    Route::get(
+      '/admin/available-cities',
+      [CityController::class, 'availableCities']
+    );
+
 });
 
 // =========================================
@@ -432,8 +492,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
 // =========================================
 
 Route::middleware('auth:sanctum')->group(function () {
-
-    // -- existing routes --
 
     // Chat routes
     Route::get('/conversations',                  [ChatController::class, 'index']);
