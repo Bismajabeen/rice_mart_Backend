@@ -8,6 +8,7 @@ use App\Http\Controllers\ShopController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RiceCategoryController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\SellerOrderController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
@@ -22,6 +23,8 @@ use App\Http\Controllers\AiRecommendationController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\CityController;
 use App\Http\Controllers\Api\CourierChargeController;
+//admin settings controller
+use App\Http\Controllers\PaymentSettingController;
 
 //
 // =========================================
@@ -385,10 +388,10 @@ Route::middleware([
 // =========================================
 //
 
-Route::middleware([
-    'auth:sanctum',
-    'permission:view own notifications'
-])->group(function () {
+   Route::middleware([
+       'auth:sanctum',
+       'permission:view own notifications'
+    ])->group(function () {
 
     Route::get('/notifications', [
         NotificationController::class,
@@ -400,25 +403,38 @@ Route::middleware([
         'markAsRead'
     ]);
 });
+    // =========================================
+    // admin settings routes
+    // =========================================
+    Route::middleware('auth:sanctum')->group(function () {
+       Route::get('/payment-settings', [
+           PaymentSettingController::class, 
+           'paymentSettings'
+        ]);
+       Route::post('/admin/payment-settings', [
+           PaymentSettingController::class, 
+          'adminUpdatePaymentSettings'
+        ]);
+    });
 
-// For testing image upload
 
-Route::post('/test-image', [TestImageController::class, 'upload']);
+    // For testing image upload
 
-Route::middleware(['auth:sanctum'])->group(function () {
+   Route::post('/test-image', [TestImageController::class, 'upload']);
+
+   Route::middleware(['auth:sanctum'])->group(function () {
 
     // =========================
     // ADMIN PAYMENT MANAGEMENT
     // =========================
-    Route::get(
-        '/admin/payments',
-        [OrderController::class, 'adminPayments']
-    );
-
-    Route::put(
-        '/admin/payments/{id}/status',
-        [OrderController::class, 'updatePaymentStatus']
-    );
+    Route::get('/admin/payments', [
+        PaymentController::class, 
+        'adminPayments'
+    ]);
+    Route::put('/admin/payments/{id}/status', [
+        PaymentController::class,
+        'updatePaymentStatus'
+    ]);
 
     // shop review route
 
