@@ -101,7 +101,7 @@ class ProductController extends Controller
         // ✅ Ownership check through shop
         $product = Product::where('id', $id)
          ->whereHas('shop', function ($query) {
-            $query->where('user_id', auth()->id()); 
+            $query->where('user_id', auth()->id());
             })
             ->first();
 

@@ -44,6 +44,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
 
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/delete-account/request', [ProfileController::class, 'requestDeletion']);
+    Route::post('/delete-account/confirm', [ProfileController::class, 'confirmDeletion']);
 
     Route::get('/user', function (Request $request) {
         return $request->user();
