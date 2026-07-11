@@ -16,11 +16,17 @@ class ShopController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'cnic' => 'required',
-            'shop_name' => 'required',
-            'owner_name' => 'required',
-            'phone' => 'required',
-            'address' => 'required',
+            'cnic' => 'required|string|max:20',
+            'shop_name' => 'required|string|max:255',
+            'owner_name' => 'required|string|max:255',
+            'phone' => 'required|string|max:20',
+            'city' => 'required|string|max:100',
+            'address' => 'required|string',
+            'description' => 'nullable|string',
+
+            // CNIC has two sides — both are required on first submission
+            'cnic_image' => 'required|image|max:2048',
+            'cnic_back_image' => 'required|image|max:2048',
         ]);
 
         if (Shop::where('user_id', $request->user()->id)->exists()) {
@@ -29,13 +35,18 @@ class ShopController extends Controller
             ], 400);
         }
 
+        $cnicImagePath = $request->file('cnic_image')->store('shops/cnic', 'public');
+        $cnicBackImagePath = $request->file('cnic_back_image')->store('shops/cnic', 'public');
+
         $shop = Shop::create([
             'user_id' => $request->user()->id,
             'cnic' => $request->cnic,
-            'cnic_image' => $request->cnic_image ?? null,
+            'cnic_image' => $cnicImagePath,
+            'cnic_back_image' => $cnicBackImagePath,
             'shop_name' => $request->shop_name,
             'owner_name' => $request->owner_name,
             'phone' => $request->phone,
+            'city' => $request->city,
             'address' => $request->address,
             'description' => $request->description ?? null,
             'status' => 'pending',
@@ -77,7 +88,10 @@ class ShopController extends Controller
 
         $shop->update([
             'is_approved' => 1,
-            'status' => 'approved'
+            'status' => 'approved',
+            // clear any outstanding correction note — nothing left to fix
+            'correction_reason' => null,
+            'correction_requested_at' => null,
         ]);
 
         $user = $shop->user;
@@ -89,6 +103,49 @@ class ShopController extends Controller
         return response()->json([
             'success' => true,
             'shop' => $shop
+        ]);
+    }
+
+    // =========================
+    // ADMIN REQUEST CORRECTION
+    // =========================
+    public function requestCorrection(Request $request, $id)
+    {
+        if (
+            !$request->user()->hasAnyRole([
+                'admin',
+                'super_admin',
+            ])
+        ) {
+            return response()->json([
+                'message' => 'Unauthorized',
+            ], 403);
+        }
+
+        $request->validate([
+            'reason' => 'required|string|max:1000',
+        ]);
+
+        $shop = Shop::find($id);
+
+        if (!$shop) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Shop not found',
+            ], 404);
+        }
+
+        $shop->update([
+            'correction_reason' => $request->reason,
+            'correction_requested_at' => now(),
+            // status intentionally left as "pending" — the seller stays
+            // in the approval queue and can see the reason + resubmit
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Correction request sent',
+            'shop' => $shop,
         ]);
     }
 
@@ -140,7 +197,9 @@ class ShopController extends Controller
     }
 
     // =========================
-    // UPDATE SHOP
+    // UPDATE SHOP (also used by the seller to resubmit after a
+    // correction request — CNIC images are optional here since the
+    // seller may only need to fix a text field, not re-upload)
     // =========================
     public function update(Request $request, $id)
     {
@@ -155,20 +214,39 @@ class ShopController extends Controller
         }
 
         $request->validate([
-            'shop_name' => 'required',
-            'owner_name' => 'required',
-            'phone' => 'required',
-            'address' => 'required',
+            'shop_name' => 'required|string|max:255',
+            'owner_name' => 'required|string|max:255',
+            'phone' => 'required|string|max:20',
+            'city' => 'required|string|max:100',
+            'address' => 'required|string',
+            'description' => 'nullable|string',
+            'cnic_image' => 'nullable|image|max:2048',
+            'cnic_back_image' => 'nullable|image|max:2048',
         ]);
 
-        $shop->update([
+        $data = [
             'shop_name' => $request->shop_name,
             'owner_name' => $request->owner_name,
             'phone' => $request->phone,
+            'city' => $request->city,
             'address' => $request->address,
             'description' => $request->description,
             'status' => 'pending',
-        ]);
+            // clear the correction note on resubmit — the old reason
+            // shouldn't keep showing once the seller has acted on it
+            'correction_reason' => null,
+            'correction_requested_at' => null,
+        ];
+
+        if ($request->hasFile('cnic_image')) {
+            $data['cnic_image'] = $request->file('cnic_image')->store('shops/cnic', 'public');
+        }
+
+        if ($request->hasFile('cnic_back_image')) {
+            $data['cnic_back_image'] = $request->file('cnic_back_image')->store('shops/cnic', 'public');
+        }
+
+        $shop->update($data);
 
         return response()->json([
             'success' => true,
