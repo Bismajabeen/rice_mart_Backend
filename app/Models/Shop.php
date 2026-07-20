@@ -13,14 +13,19 @@ class Shop extends Model
         'user_id',
         'cnic',
         'cnic_image',
+        'cnic_back_image',
         'shop_name',
         'owner_name',
         'phone',
+        'city',
         'address',
         'description',
 
         'status',
-        'is_approved'
+        'is_approved',
+
+        'correction_reason',
+        'correction_requested_at',
     ];
 
     public function riceCategories()
