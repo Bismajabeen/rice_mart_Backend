@@ -93,6 +93,20 @@ Route::get('/shop-products/{shopId}', [
 
 //
 // =========================================
+// PUBLIC: CITIES + DELIVERY CHARGES (checkout dropdown)
+// =========================================
+//
+
+Route::get('/cities-with-charges', [
+    CityController::class,
+    'citiesWithCharges'
+]);
+
+// routes/api.php — inside your authenticated (non-admin) group
+Route::get('/delivery-charges', [CourierChargeController::class, 'deliverableCities']);
+
+//
+// =========================================
 // AUTHENTICATED ROUTES
 // =========================================
 //

@@ -116,4 +116,30 @@ class CityController extends Controller
          'data' => $cities,
        ], 200);
     }
+
+    // =========================
+    // PUBLIC: CITIES + THEIR COURIER CHARGE (for checkout dropdown)
+    // No auth required — a customer needs this before/while checking out.
+    // Cities without an assigned charge are excluded since they can't be delivered to yet.
+    // =========================
+    public function citiesWithCharges()
+    {
+        $cities = City::whereHas('courierCharge')
+            ->with('courierCharge')
+            ->orderBy('name')
+            ->get()
+            ->map(function ($city) {
+                return [
+                    'id' => $city->id,
+                    'name' => $city->name,
+                    'code' => $city->code,
+                    'delivery_charge' => (float) $city->courierCharge->charge,
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data' => $cities,
+        ], 200);
+    }
 }

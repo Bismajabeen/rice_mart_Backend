@@ -25,7 +25,7 @@ class OrderController extends Controller
         $request->validate([
             'customer_name' => 'required|string|max:255',
             'phone' => 'required|string|max:20',
-            'city' => 'required|string|max:100',
+            'city_id' => 'required|exists:cities,id',
             'address' => 'required|string',
 
             'payment_method' => 'required|in:easypaisa,jazzcash,card',
@@ -39,6 +39,22 @@ class OrderController extends Controller
         DB::beginTransaction();
 
         try {
+
+            // =========================
+            // RESOLVE CITY + DELIVERY CHARGE (server-side, never trust client)
+            // =========================
+            $city = \App\Models\City::with('courierCharge')->find($request->city_id);
+
+            if (!$city || !$city->courierCharge) {
+                DB::rollBack();
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Delivery is not available for the selected city',
+                ], 400);
+            }
+
+            $deliveryCharge = (float) $city->courierCharge->charge;
 
             // =========================
             // PAYMENT SCREENSHOT
@@ -76,9 +92,11 @@ class OrderController extends Controller
 
                 'customer_name' => $request->customer_name,
                 'phone' => $request->phone,
-                'city' => $request->city,
+                'city' => $city->name,
+                'city_id' => $city->id,
                 'address' => $request->address,
                 'total_price' => 0,
+                'delivery_charge' => $deliveryCharge,
 
                 'status' => 'pending',
 
@@ -172,44 +190,24 @@ class OrderController extends Controller
             }
 
             // =========================
-            // UPDATE TOTAL
+            // UPDATE TOTAL (items + delivery charge)
             // =========================
             $order->update([
-                'total_price' => $total,
+                'total_price' => $total + $deliveryCharge,
             ]);
-<<<<<<< HEAD
-                // =========================
-                // CREATE PAYMENT RECORD
-                // =========================
-                Payment::create([
-                    'order_id' => $order->id,
-                    'payment_method' => $request->payment_method,
-                    // 'payment_type' => in_array($request->payment_method, ['easypaisa', 'jazzcash'])
-                    //     ? 'manual'
-                    //     : 'gateway',
-                    'payment_type' => 'manual',
-                    'amount' => $total,
-                    'transaction_id' => $request->transaction_id,
-                    'screenshot_path' => $paymentProof,
-                    'status' => $paymentStatus,
-                ]);
-=======
 
             // =========================
             // CREATE PAYMENT RECORD
             // =========================
-            // NOTE: This stays here (not in PaymentController) because it must
-            // commit/rollback atomically with the order inside this same transaction.
             Payment::create([
                 'order_id' => $order->id,
                 'payment_method' => $request->payment_method,
                 'payment_type' => 'manual',
-                'amount' => $total,
+                'amount' => $total + $deliveryCharge,
                 'transaction_id' => $request->transaction_id,
                 'screenshot_path' => $paymentProof,
                 'status' => $paymentStatus,
             ]);
->>>>>>> b19eb5112078d5cc879177b66bf511b9868736ac
 
             DB::commit();
 
@@ -427,76 +425,10 @@ class OrderController extends Controller
         ]);
     }
 
-<<<<<<< HEAD
-
     // =========================
     // ADMIN UPDATE ORDER STATUS
     // =========================
-    // public function adminUpdateOrderStatus(Request $request, $id)
-    // {
-    //     if (
-    //         !$request->user()->hasAnyRole([
-    //             'admin',
-    //             'super_admin',
-    //         ])
-    //     ) {
-
-    //         return response()->json([
-    //             'message' => 'Unauthorized',
-    //         ], 403);
-    //     }
-
-    //     $order = Order::with('items')->findOrFail($id);
-
-    //     $request->validate([
-    //         'status' => 'required|in:pending,processing,shipped,delivered,cancelled',
-    //     ]);
-
-    //     if (
-    //         $order->payment_status !== 'paid' &&
-    //         $request->status !== 'cancelled')
-    //     {
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'Payment not approved yet'
-    //         ], 400);
-    //     }
-
-    //     if ($request->status === 'cancelled') {
-
-    //     foreach ($order->items as $item) {
-
-    //     if ($item->status !== 'cancelled' && $item->product)
-    //     {
-    //         $item->product->increment(
-    //             'stock',
-    //             $item->quantity
-    //         );
-    //     }
-
-    //     $item->update([
-    //         'status' => 'cancelled',
-    //     ]);
-    //     }
-    //     }
-
-    //     $order->update([
-    //         'status' => $request->status,
-    //     ]);
-
-    //     return response()->json([
-    //         'success' => true,
-    //         'message' => 'Order status updated',
-    //         'order' => $order,
-    //     ]);
-    // }
-
-=======
->>>>>>> b19eb5112078d5cc879177b66bf511b9868736ac
-    // =========================
-    // ADMIN UPDATE ORDER ITEM
-    // =========================
-    public function adminUpdateOrderItemStatus(Request $request, $id)
+    public function adminUpdateOrderStatus(Request $request, $id)
     {
         if (
             !$request->user()->hasAnyRole([
@@ -701,204 +633,5 @@ class OrderController extends Controller
         }
 
         $order->save();
-<<<<<<< HEAD
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Order item updated',
-
-            'item' => $item,
-
-            'order_status' => $order->status,
-        ]);
-    }
-
-    // =========================
-    // ADMIN PAYMENT LIST
-   // =========================
-    public function adminPayments(Request $request)
-    {
-        if (
-            !$request->user()->hasAnyRole([
-                'admin',
-                'super_admin',
-            ])
-        ) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized',
-            ], 403);
-        }
-
-        $payments = Payment::with([
-            'order.user',
-            'order.items.product',
-            'order.items.shop',
-        ])
-        ->latest()
-        ->get();
-
-        return response()->json([
-            'success' => true,
-            'payments' => $payments,
-        ]);
-    }
-
-    // =========================
-    // ADMIN UPDATE PAYMENT STATUS
-    // =========================
-    public function updatePaymentStatus(Request $request,$id)
-    {
-       // =========================
-       // ADMIN CHECK
-       // =========================
-       if (
-        !$request->user()->hasAnyRole([
-            'admin',
-            'super_admin',
-        ])
-        ) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Unauthorized',
-        ], 403);
-        }
-
-       // =========================
-       // VALIDATION
-       // =========================
-       $request->validate([
-        'payment_status' => 'required|in:paid,rejected',
-        'rejection_reason' =>'required_if:payment_status,rejected|string|max:1000',
-        ]);
-
-        DB::beginTransaction();
-        try {
-
-        // =========================
-        // GET PAYMENT
-        // =========================
-        $payment = Payment::with([
-            'order.items.product'
-        ])->find($id);
-
-        if (!$payment) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Payment not found',
-            ], 404);
-        }
-
-        $order = $payment->order;
-
-        // =========================
-        // PREVENT DOUBLE APPROVAL
-        // =========================
-        if (in_array($payment->status, ['paid', 'rejected']))
-        {
-
-            DB::rollBack();
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Payment already processed',
-            ], 400);
-        }
-
-        // =========================
-        // PAYMENT APPROVED
-        // =========================
-        if ($request->payment_status === 'paid') {
-
-            // STOCK CHECK AGAIN
-            foreach ($order->items as $item) {
-
-                if (!$item->product) {
-
-                        DB::rollBack();
-
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Product not found',
-                    ], 400);
-                }
-
-                if ($item->quantity > $item->product->stock) {
-
-                    DB::rollBack();
-
-                    return response()->json([
-                        'success' => false,
-                        'message' => $item->product->name .
-                            ' is out of stock',
-                    ], 400);
-                }
-            }
-
-            // =========================
-            // DEDUCT STOCK
-            // =========================
-            foreach ($order->items as $item) {
-
-                $item->product->decrement(
-                    'stock',
-                    $item->quantity
-                );
-            }
-
-            // =========================
-            // UPDATE PAYMENT
-            // =========================
-            $payment->update([
-                'status' => 'paid',
-                'verified_by' => $request->user()->id,
-                'verified_at' => now(),
-                'rejection_reason' => null,
-            ]);
-
-            // =========================
-            // UPDATE ORDER
-            // =========================
-            $order->update([
-                'payment_status' => 'paid',
-                'status' => 'processing',
-            ]);
-        }
-
-        // =========================
-        // PAYMENT REJECTED
-        // =========================
-        if ($request->payment_status === 'rejected') {
-
-            $payment->update([
-                'status' => 'rejected',
-                'verified_by' => $request->user()->id,
-                'verified_at' => now(),
-                'rejection_reason' => $request->rejection_reason,
-            ]);
-
-            $order->update([
-                'payment_status' => 'rejected',
-            ]);
-        }
-
-        DB::commit();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Payment status updated successfully',
-            'payment' => $payment->fresh(),
-        ]);
-        } catch (\Exception $e) {
-
-        DB::rollBack();
-
-        return response()->json([
-            'success' => false,
-            'message' => $e->getMessage(),
-        ], 500);
-        }
-=======
->>>>>>> b19eb5112078d5cc879177b66bf511b9868736ac
     }
 }
