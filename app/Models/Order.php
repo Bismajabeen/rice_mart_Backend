@@ -13,38 +13,40 @@ class Order extends Model
         'customer_name',
         'phone',
         'city',
+        'city_id',
         'address',
         'notes',
         'total_price',
+        'delivery_charge',
         'status',
         'payment_status',
-        ];
+    ];
 
-        protected $casts = [
-            'total_price' => 'float',
-        ];
+    protected $casts = [
+        'total_price' => 'float',
+        'delivery_charge' => 'float',
+    ];
 
-    // =========================
-    // ORDER ITEMS
-    // =========================
     public function items()
     {
         return $this->hasMany(OrderItem::class);
     }
 
-    // =========================
-    // USER RELATION
-    // =========================
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    // =========================
-    // PAYMENT RELATION
-    // =========================
     public function payment()
     {
         return $this->hasOne(Payment::class);
+    }
+
+    // =========================
+    // CITY RELATION
+    // =========================
+    public function cityModel()
+    {
+        return $this->belongsTo(City::class, 'city_id');
     }
 }

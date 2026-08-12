@@ -93,6 +93,20 @@ Route::get('/shop-products/{shopId}', [
 
 //
 // =========================================
+// PUBLIC: CITIES + DELIVERY CHARGES (checkout dropdown)
+// =========================================
+//
+
+Route::get('/cities-with-charges', [
+    CityController::class,
+    'citiesWithCharges'
+]);
+
+// routes/api.php — inside your authenticated (non-admin) group
+Route::get('/delivery-charges', [CourierChargeController::class, 'deliverableCities']);
+
+//
+// =========================================
 // AUTHENTICATED ROUTES
 // =========================================
 //
@@ -388,23 +402,14 @@ Route::middleware([
 // =========================================
 // NOTIFICATIONS
 // =========================================
-//
 
-   Route::middleware([
-       'auth:sanctum',
-       'permission:view own notifications'
-    ])->group(function () {
-
-    Route::get('/notifications', [
-        NotificationController::class,
-        'myNotifications'
-    ]);
-
-    Route::put('/notifications/{id}/read', [
-        NotificationController::class,
-        'markAsRead'
-    ]);
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::put('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::put('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
 });
+
     // =========================================
     // admin settings routes
     // =========================================

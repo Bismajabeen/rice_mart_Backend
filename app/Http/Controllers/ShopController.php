@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\Shop;
 use App\Models\RiceCategory;
 use Illuminate\Support\Facades\DB;
+use App\Services\NotificationService;
 
 class ShopController extends Controller
 {
@@ -53,6 +54,16 @@ class ShopController extends Controller
             'is_approved' => 0,
         ]);
 
+        // =========================
+        // NOTIFY ADMINS — new shop needs review
+        // =========================
+        NotificationService::sendToAdmins(
+            'shop_pending',
+            'New shop pending approval',
+            $shop->shop_name . ' has submitted a shop for approval.',
+            ['shop_id' => $shop->id]
+        );
+
         return response()->json([
             'success' => true,
             'shop' => $shop
@@ -98,6 +109,17 @@ class ShopController extends Controller
 
         if ($user) {
             $user->syncRoles(['seller']);
+
+            // =========================
+            // NOTIFY SELLER — shop approved
+            // =========================
+            NotificationService::send(
+                $user,
+                'shop_status',
+                'Shop approved',
+                'Your shop "' . $shop->shop_name . '" has been approved.',
+                ['shop_id' => $shop->id]
+            );
         }
 
         return response()->json([
@@ -141,6 +163,17 @@ class ShopController extends Controller
             // status intentionally left as "pending" — the seller stays
             // in the approval queue and can see the reason + resubmit
         ]);
+
+        // =========================
+        // NOTIFY SHOP OWNER — correction requested
+        // =========================
+        NotificationService::send(
+            $shop->user,
+            'shop_status',
+            'Correction requested',
+            'Admin requested a correction on your shop: ' . $request->reason,
+            ['shop_id' => $shop->id]
+        );
 
         return response()->json([
             'success' => true,
@@ -187,6 +220,17 @@ class ShopController extends Controller
                 'is_approved' => 1,
                 'status' => 'approved',
             ]);
+
+            // =========================
+            // NOTIFY SELLER — account + shop created and auto-approved
+            // =========================
+            NotificationService::send(
+                $user,
+                'shop_status',
+                'Shop created',
+                'Your shop "' . $shop->shop_name . '" has been created and approved by admin.',
+                ['shop_id' => $shop->id]
+            );
 
             return response()->json([
                 'success' => true,
@@ -247,6 +291,16 @@ class ShopController extends Controller
         }
 
         $shop->update($data);
+
+        // =========================
+        // NOTIFY ADMINS — seller resubmitted after correction request
+        // =========================
+        NotificationService::sendToAdmins(
+            'shop_pending',
+            'Shop resubmitted',
+            $shop->shop_name . ' was updated by the seller and needs re-review.',
+            ['shop_id' => $shop->id]
+        );
 
         return response()->json([
             'success' => true,

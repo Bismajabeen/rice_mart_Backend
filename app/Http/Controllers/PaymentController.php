@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Payment;
+use App\Models\Shop;
 use Illuminate\Support\Facades\DB;
+use App\Services\NotificationService;
 
 class PaymentController extends Controller
 {
@@ -157,6 +159,38 @@ class PaymentController extends Controller
                     'payment_status' => 'paid',
                     'status' => 'processing',
                 ]);
+
+                // =========================
+                // NOTIFY SELLER(S) — new order ready to prepare
+                // (an order can contain items from multiple shops, so
+                // notify every distinct shop owner involved, once each)
+                // =========================
+                $shopIds = $order->items->pluck('shop_id')->unique();
+
+                foreach ($shopIds as $shopId) {
+                    $shop = Shop::find($shopId);
+
+                    if ($shop) {
+                        NotificationService::send(
+                            $shop->user,
+                            'order_placed',
+                            'New order received',
+                            'You have a new order: ' . $order->order_number,
+                            ['order_id' => $order->id]
+                        );
+                    }
+                }
+
+                // =========================
+                // NOTIFY BUYER — payment confirmed
+                // =========================
+                NotificationService::send(
+                    $order->user,
+                    'payment_status',
+                    'Payment confirmed',
+                    'Your payment for order ' . $order->order_number . ' has been confirmed.',
+                    ['order_id' => $order->id]
+                );
             }
 
             // =========================
@@ -174,6 +208,17 @@ class PaymentController extends Controller
                 $order->update([
                     'payment_status' => 'rejected',
                 ]);
+
+                // =========================
+                // NOTIFY BUYER — payment rejected
+                // =========================
+                NotificationService::send(
+                    $order->user,
+                    'payment_status',
+                    'Payment rejected',
+                    'Your payment for order ' . $order->order_number . ' was rejected: ' . $request->rejection_reason,
+                    ['order_id' => $order->id]
+                );
             }
 
             DB::commit();

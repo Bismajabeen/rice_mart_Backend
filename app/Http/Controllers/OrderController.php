@@ -9,6 +9,9 @@ use App\Models\Product;
 use App\Models\Payment;
 use App\Models\Shop;
 use Illuminate\Support\Facades\DB;
+use App\Mail\OrderStatusUpdated;
+use Illuminate\Support\Facades\Mail;
+use App\Services\NotificationService;
 
 class OrderController extends Controller
 {
@@ -25,7 +28,7 @@ class OrderController extends Controller
         $request->validate([
             'customer_name' => 'required|string|max:255',
             'phone' => 'required|string|max:20',
-            'city' => 'required|string|max:100',
+            'city_id' => 'required|exists:cities,id',
             'address' => 'required|string',
 
             'payment_method' => 'required|in:easypaisa,jazzcash,card',
@@ -39,6 +42,22 @@ class OrderController extends Controller
         DB::beginTransaction();
 
         try {
+
+            // =========================
+            // RESOLVE CITY + DELIVERY CHARGE (server-side, never trust client)
+            // =========================
+            $city = \App\Models\City::with('courierCharge')->find($request->city_id);
+
+            if (!$city || !$city->courierCharge) {
+                DB::rollBack();
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Delivery is not available for the selected city',
+                ], 400);
+            }
+
+            $deliveryCharge = (float) $city->courierCharge->charge;
 
             // =========================
             // PAYMENT SCREENSHOT
@@ -76,9 +95,11 @@ class OrderController extends Controller
 
                 'customer_name' => $request->customer_name,
                 'phone' => $request->phone,
-                'city' => $request->city,
+                'city' => $city->name,
+                'city_id' => $city->id,
                 'address' => $request->address,
                 'total_price' => 0,
+                'delivery_charge' => $deliveryCharge,
 
                 'status' => 'pending',
 
@@ -172,26 +193,34 @@ class OrderController extends Controller
             }
 
             // =========================
-            // UPDATE TOTAL
+            // UPDATE TOTAL (items + delivery charge)
             // =========================
             $order->update([
-                'total_price' => $total,
+                'total_price' => $total + $deliveryCharge,
             ]);
 
             // =========================
             // CREATE PAYMENT RECORD
             // =========================
-            // NOTE: This stays here (not in PaymentController) because it must
-            // commit/rollback atomically with the order inside this same transaction.
             Payment::create([
                 'order_id' => $order->id,
                 'payment_method' => $request->payment_method,
                 'payment_type' => 'manual',
-                'amount' => $total,
+                'amount' => $total + $deliveryCharge,
                 'transaction_id' => $request->transaction_id,
                 'screenshot_path' => $paymentProof,
                 'status' => $paymentStatus,
             ]);
+
+            // =========================
+            // NOTIFY ADMINS — new order needs payment review
+            // =========================
+            NotificationService::sendToAdmins(
+                'order_placed',
+                'New order needs review',
+                'Order ' . $order->order_number . ' was placed and is awaiting payment verification.',
+                ['order_id' => $order->id]
+            );
 
             DB::commit();
 
@@ -331,6 +360,19 @@ class OrderController extends Controller
         $order->update([
             'status' => 'cancelled',
         ]);
+
+        // Customer-initiated cancellation — email + notify them a
+        // confirmation too, since this path doesn't go through
+        // syncOrderStatus().
+        Mail::to($order->user->email)->send(new OrderStatusUpdated($order));
+
+        NotificationService::send(
+            $order->user,
+            'order_status',
+            'Order cancelled',
+            'Your order ' . $order->order_number . ' has been cancelled.',
+            ['order_id' => $order->id]
+        );
 
         return response()->json([
             'success' => true,
@@ -593,6 +635,8 @@ class OrderController extends Controller
     // =========================
     private function syncOrderStatus(Order $order): void
     {
+        $oldStatus = $order->status; // capture before recalculating
+
         $statuses = $order->items()->pluck('status');
 
         if ($statuses->every(fn($s) => $s == 'delivered')) {
@@ -617,5 +661,54 @@ class OrderController extends Controller
         }
 
         $order->save();
+
+        // =========================
+        // EMAIL + NOTIFY ON STATUS CHANGE
+        // =========================
+        // Only fire if the status actually changed, and skip 'pending'
+        // (no need to email/notify the buyer that their own just-placed
+        // order is pending).
+        if ($order->status !== $oldStatus && $order->status !== 'pending') {
+
+            Mail::to($order->user->email)->send(new OrderStatusUpdated($order));
+
+            if ($order->status === 'shipped') {
+                NotificationService::send(
+                    $order->user,
+                    'order_status',
+                    'Order shipped',
+                    'Your order ' . $order->order_number . ' has been shipped.',
+                    ['order_id' => $order->id]
+                );
+            }
+
+            if ($order->status === 'delivered') {
+                NotificationService::send(
+                    $order->user,
+                    'order_status',
+                    'Order delivered',
+                    'Your order ' . $order->order_number . ' has been delivered.',
+                    ['order_id' => $order->id]
+                );
+
+                // Admins need to know so they can release payment to the seller(s)
+                NotificationService::sendToAdmins(
+                    'payment_release',
+                    'Release payment to seller',
+                    'Order ' . $order->order_number . ' was delivered. Release payment to the seller.',
+                    ['order_id' => $order->id]
+                );
+            }
+
+            if ($order->status === 'cancelled') {
+                NotificationService::send(
+                    $order->user,
+                    'order_status',
+                    'Order cancelled',
+                    'Your order ' . $order->order_number . ' has been cancelled.',
+                    ['order_id' => $order->id]
+                );
+            }
+        }
     }
 }

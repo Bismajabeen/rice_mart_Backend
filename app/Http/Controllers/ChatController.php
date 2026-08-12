@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Shop;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Services\NotificationService;
 
 class ChatController extends Controller
 {
@@ -158,6 +160,23 @@ class ChatController extends Controller
 
         // Update last_message_at on the conversation
         $conversation->update(['last_message_at' => now()]);
+
+        // =========================
+        // NOTIFY THE OTHER PARTY — new message
+        // (buyer sent it -> notify the shop owner; seller sent it ->
+        // notify the buyer)
+        // =========================
+        $recipient = $isBuyer
+            ? ($shop ? $shop->user : null)
+            : User::find($conversation->buyer_id);
+
+        NotificationService::send(
+            $recipient,
+            'chat_message',
+            'New message',
+            $user->name . ' sent you a message',
+            ['conversation_id' => $conversation->id]
+        );
 
         return response()->json([
             'id'          => $message->id,

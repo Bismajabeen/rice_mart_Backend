@@ -100,4 +100,19 @@ class CourierChargeController extends Controller
             'message' => 'Courier charge deleted successfully.',
         ], 200);
     }
+
+    // CourierChargeController.php — new method
+    public function deliverableCities()
+    {
+        $charges = CourierCharge::with('city')
+         ->join('cities', 'courier_charges.city_id', '=', 'cities.id')
+         ->orderBy('cities.name')
+         ->select('courier_charges.*')
+         ->get();
+
+       return response()->json([
+         'success' => true,
+         'data' => $charges, // each item has ->city and ->charge
+        ]);
+    }
 }
