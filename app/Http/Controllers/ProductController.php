@@ -20,6 +20,7 @@ class ProductController extends Controller
             'name' => 'required|string',
             'price' => 'required|numeric',
             'stock' => 'required|numeric',
+            'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
         ]);
 
         // ✅ Ownership check (shop must belong to seller)
@@ -45,6 +46,12 @@ class ProductController extends Controller
             ], 400);
         }
 
+        // ✅ Handle image upload (stored on disk, path saved in DB)
+        $imagePath = null;
+        if ($request->hasFile('image')) {
+            $imagePath = $request->file('image')->store('products', 'public');
+        }
+
         $product = Product::create([
             'user_id' => auth()->id(),
             'shop_id' => $request->shop_id,
@@ -52,7 +59,7 @@ class ProductController extends Controller
             'name' => $request->name,
             'price' => $request->price,
             'stock' => $request->stock,
-            'image' => null,
+            'image' => $imagePath,
         ]);
 
         return response()->json([
@@ -96,6 +103,7 @@ class ProductController extends Controller
         $request->validate([
             'price' => 'required|numeric',
             'stock' => 'required|numeric',
+            'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
         ]);
 
         // ✅ Ownership check through shop
@@ -111,10 +119,21 @@ class ProductController extends Controller
             ], 403);
         }
 
-        $product->update([
+        $updateData = [
             'price' => $request->price,
             'stock' => $request->stock,
-        ]);
+        ];
+
+        // ✅ Replace image only if a new one is uploaded
+        if ($request->hasFile('image')) {
+            // delete old image if exists
+            if ($product->image && \Illuminate\Support\Facades\Storage::disk('public')->exists($product->image)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($product->image);
+            }
+            $updateData['image'] = $request->file('image')->store('products', 'public');
+        }
+
+        $product->update($updateData);
 
         return response()->json([
             'success' => true,
@@ -139,6 +158,11 @@ class ProductController extends Controller
             return response()->json([
                 'message' => 'Unauthorized access to product'
             ], 403);
+        }
+
+        // ✅ Remove image file from disk too
+        if ($product->image && \Illuminate\Support\Facades\Storage::disk('public')->exists($product->image)) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($product->image);
         }
 
         $product->delete();

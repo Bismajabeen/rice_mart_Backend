@@ -13,6 +13,30 @@ return new class extends Migration
     {
         Schema::create('products', function (Blueprint $table) {
             $table->id();
+
+            // USER
+            $table->foreignId('user_id')
+                  ->constrained()
+                  ->onDelete('cascade');
+
+            // SHOP
+            $table->foreignId('shop_id')
+                  ->constrained()
+                  ->onDelete('cascade');
+
+            // RICE CATEGORY
+            $table->foreignId('rice_category_id')
+                  ->constrained()
+                  ->onDelete('cascade');
+
+            // PRODUCT INFO
+            $table->string('name');
+            $table->decimal('price', 10, 2);
+            $table->integer('stock');
+
+            // SELLER PRODUCT IMAGE
+            $table->string('image')->nullable();
+
             $table->timestamps();
         });
     }
@@ -22,35 +46,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::create('products', function (Blueprint $table) {
-    $table->id();
-
-    // USER
-    $table->foreignId('user_id')
-          ->constrained()
-          ->onDelete('cascade');
-
-    // SHOP
-    $table->foreignId('shop_id')
-          ->constrained()
-          ->onDelete('cascade');
-
-    // RICE CATEGORY
-    $table->foreignId('rice_category_id')
-          ->constrained()
-          ->onDelete('cascade');
-
-    // PRODUCT INFO
-    $table->string('name');
-
-    $table->decimal('price', 10, 2);
-
-    $table->integer('stock');
-
-    // SELLER PRODUCT IMAGE
-    $table->string('image')->nullable();
-
-    $table->timestamps();
-});
-}
+        Schema::dropIfExists('products');
+    }
 };
