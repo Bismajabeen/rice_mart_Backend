@@ -426,181 +426,68 @@ class OrderController extends Controller
     }
 
     // =========================
-    // ADMIN UPDATE ORDER STATUS
+    // ADMIN UPDATE ORDER ITEM STATUS
+    // (renamed from adminUpdateOrderStatus to match the route binding)
     // =========================
-    public function adminUpdateOrderStatus(Request $request, $id)
+    public function adminUpdateOrderItemStatus(Request $request, $id)
     {
         if (
-            !$request->user()->hasAnyRole([
-                'admin',
-                'super_admin',
+             !$request->user()->hasAnyRole([
+             'admin',
+             'super_admin',
             ])
         ) {
-
-            return response()->json([
-                'message' => 'Unauthorized',
-            ], 403);
+           return response()->json([
+             'message' => 'Unauthorized',
+        ], 403);
         }
 
-        $request->validate([
-            'status' => 'required|in:pending,processing,shipped,delivered,cancelled',
+       $request->validate([
+        'status' => 'required|in:pending,processing,shipped,delivered,cancelled',
         ]);
 
-        $item = OrderItem::with(
-            'order',
-            'product'
-        )->findOrFail($id);
+      $item = OrderItem::with('order', 'product')->findOrFail($id);
 
-        // =========================
-        // PAYMENT CHECK
-        // =========================
-        if ($item->order->payment_status !== 'paid' && $request->status !== 'cancelled') {
-
-             return response()->json([
-                'success' => false,
-                'message' => 'Payment not approved yet'
+       // =========================
+       // PAYMENT CHECK
+       // =========================
+       if ($item->order->payment_status !== 'paid' && $request->status !== 'cancelled') {
+          return response()->json([
+             'success' => false,
+             'message' => 'Payment not approved yet'
             ], 400);
         }
 
-        // =========================
-        // UPDATE ITEM STATUS
-        // =========================
-        $item->update([
-            'status' => $request->status,
-        ]);
-
-        // =========================
-        // SYNC ORDER STATUS
-        // =========================
-        $order = $item->order;
-
-        $this->syncOrderStatus($order);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Order item updated',
-
-            'item' => $item,
-
-            'order_status' => $order->status,
-        ]);
-    }
-
-    // =========================
-    // SELLER ORDERS
-    // =========================
-    public function sellerOrders(Request $request)
-    {
-        if (!$request->user()->hasAnyRole(['seller'])) {
-
-            return response()->json([
-                'message' => 'Unauthorized',
-            ], 403);
-        }
-
-        $shop = Shop::where('user_id', $request->user()->id)->first();
-
-        if (!$shop) {
-
-            return response()->json([
-                'success' => false,
-                'message' => 'No shop found for this account',
-            ], 404);
-        }
-
-        // Only orders that contain at least one item from this seller's shop.
-        // Items are scoped to this shop only, so a seller never sees another
-        // shop's items even if they share the same multi-vendor order.
-        $orders = Order::with([
-                'user',
-                'payment',
-                'items' => function ($q) use ($shop) {
-                    $q->where('shop_id', $shop->id)->with('product', 'shop');
-                },
-            ])
-            ->whereHas('items', function ($q) use ($shop) {
-                $q->where('shop_id', $shop->id);
-            })
-            ->latest()
-            ->get();
-
-        return response()->json([
-            'success' => true,
-            'orders' => $orders,
-        ]);
-    }
-
-    // =========================
-    // SELLER UPDATE ORDER ITEM
-    // =========================
-    public function sellerUpdateItemStatus(Request $request, $id)
-    {
-        if (!$request->user()->hasAnyRole(['seller'])) {
-
-            return response()->json([
-                'message' => 'Unauthorized',
-            ], 403);
-        }
-
-        $shop = Shop::where('user_id', $request->user()->id)->first();
-
-        if (!$shop) {
-
-            return response()->json([
-                'success' => false,
-                'message' => 'No shop found for this account',
-            ], 404);
-        }
-
-        $request->validate([
-            'status' => 'required|in:pending,processing,shipped,delivered,cancelled',
-        ]);
-
-        $item = OrderItem::with('order', 'product')->findOrFail($id);
-
-        // =========================
-        // OWNERSHIP CHECK
-        // =========================
-        if ($item->shop_id !== $shop->id) {
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized',
-            ], 403);
-        }
-
-        // =========================
-        // PAYMENT CHECK
-        // =========================
-        if ($item->order->payment_status !== 'paid' && $request->status !== 'cancelled') {
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Payment not approved yet'
+       // =========================
+      // PREVENT CHANGES AFTER DELIVERY
+      // (matches SellerOrderController's rule, so admin can't undo a delivered item either)
+      // =========================
+      if ($item->status === 'delivered') {
+         return response()->json([
+             'success' => false,
+             'message' => 'Delivered order cannot be changed'
             ], 400);
         }
 
-        // =========================
-        // UPDATE ITEM STATUS
-        // =========================
-        $item->update([
-            'status' => $request->status,
+      // =========================
+      // UPDATE ITEM STATUS
+     // =========================
+      $item->update([
+         'status' => $request->status,
         ]);
 
-        // =========================
-        // SYNC ORDER STATUS
-        // =========================
-        $order = $item->order;
+      // =========================
+      // SYNC ORDER STATUS
+      // =========================
+      $order = $item->order;
 
-        $this->syncOrderStatus($order);
+       $this->syncOrderStatus($order);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Order item updated',
-
-            'item' => $item,
-
-            'order_status' => $order->status,
+      return response()->json([
+         'success' => true,
+         'message' => 'Order item updated',
+         'item' => $item->fresh(),
+         'order_status' => $order->status,
         ]);
     }
 
