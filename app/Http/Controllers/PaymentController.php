@@ -4,7 +4,12 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Payment;
+<<<<<<< HEAD
 use App\Models\Shop;
+=======
+use App\Models\OrderItem;
+use App\Models\SellerPayout;
+>>>>>>> 7f980556c6bdb03100a65d819193700b3e0f0ae0
 use Illuminate\Support\Facades\DB;
 use App\Services\NotificationService;
 
@@ -76,7 +81,8 @@ class PaymentController extends Controller
             // GET PAYMENT
             // =========================
             $payment = Payment::with([
-                'order.items.product'
+                'order.items.product',
+                'order.items.shop',
             ])->find($id);
 
             if (!$payment) {
@@ -140,6 +146,39 @@ class PaymentController extends Controller
                         'stock',
                         $item->quantity
                     );
+                }
+
+                // =========================
+                // COMMISSION — 5% of item price only, never delivery charge
+                // =========================
+                foreach ($order->items as $item) {
+                    $lineTotal = $item->price * $item->quantity;
+                    $commission = round($lineTotal * 0.05, 2);
+
+                    $item->update([
+                        'commission_amount' => $commission,
+                        'net_amount' => $lineTotal - $commission,
+                    ]);
+                }
+
+                // =========================
+                // ONE PAYOUT ROW PER SHOP IN THIS ORDER
+                // =========================
+                $order->refresh()->load('items');
+
+                foreach ($order->items->groupBy('shop_id') as $shopId => $shopItems) {
+                    $gross = $shopItems->sum(fn ($i) => $i->price * $i->quantity);
+                    $commission = $shopItems->sum('commission_amount');
+                    $net = $shopItems->sum('net_amount');
+
+                    SellerPayout::create([
+                        'order_id' => $order->id,
+                        'shop_id' => $shopId,
+                        'gross_amount' => $gross,
+                        'commission_amount' => $commission,
+                        'net_amount' => $net,
+                        'status' => 'pending', // waiting on customer confirmation
+                    ]);
                 }
 
                 // =========================
