@@ -320,4 +320,37 @@ class ShopController extends Controller
         'shop' => $shop
         ]);
     }
+
+    // =========================
+   // SELLER — UPDATE PAYOUT DETAILS
+   // =========================
+    public function updatePayoutDetails(Request $request)
+   {
+      $shop = $request->user()->shop()->first();
+
+     if (!$shop) {
+         return response()->json([
+             'success' => false,
+             'message' => 'No shop found for this account',
+            ], 404);
+        }
+
+     $request->validate([
+         'payout_method' => 'required|in:easypaisa,jazzcash',
+         'payout_account_number' => 'required|string|max:255',
+         'payout_account_name' => 'required|string|max:255',
+        ]);
+
+     $shop->update([
+         'payout_method' => $request->payout_method,
+         'payout_account_number' => $request->payout_account_number,
+         'payout_account_name' => $request->payout_account_name,
+        ]);
+
+      return response()->json([
+         'success' => true,
+         'message' => 'Payout details updated',
+         'shop' => $shop->fresh(),
+        ]);
+    }
 }

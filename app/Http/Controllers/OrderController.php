@@ -8,6 +8,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Payment;
 use App\Models\Shop;
+use App\Models\SellerPayout;
 use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
@@ -19,18 +20,13 @@ class OrderController extends Controller
     {
         $user = $request->user();
 
-        // =========================
-        // VALIDATION
-        // =========================
         $request->validate([
             'customer_name' => 'required|string|max:255',
             'phone' => 'required|string|max:20',
             'city_id' => 'required|exists:cities,id',
             'address' => 'required|string',
-
             'payment_method' => 'required|in:easypaisa,jazzcash,card',
             'transaction_id' => 'required_if:payment_method,easypaisa,jazzcash|string|max:255',
-
             'cart' => 'required|array|min:1',
         ]);
 
@@ -40,9 +36,6 @@ class OrderController extends Controller
 
         try {
 
-            // =========================
-            // RESOLVE CITY + DELIVERY CHARGE (server-side, never trust client)
-            // =========================
             $city = \App\Models\City::with('courierCharge')->find($request->city_id);
 
             if (!$city || !$city->courierCharge) {
@@ -56,40 +49,24 @@ class OrderController extends Controller
 
             $deliveryCharge = (float) $city->courierCharge->charge;
 
-            // =========================
-            // PAYMENT SCREENSHOT
-            // =========================
             $paymentProof = null;
 
-            if (
-                in_array($request->payment_method, [
-                    'easypaisa',
-                    'jazzcash',
-                ])
-            ) {
+            if (in_array($request->payment_method, ['easypaisa', 'jazzcash'])) {
 
                 $request->validate([
                     'payment_proof' => 'required|image|max:2048',
                 ]);
 
-              if ($request->hasFile('payment_proof')) {
-                 $paymentProof = $request->file('payment_proof')
-                 ->store('payments', 'public');
+                if ($request->hasFile('payment_proof')) {
+                    $paymentProof = $request->file('payment_proof')->store('payments', 'public');
                 }
             }
 
-            // =========================
-            // PAYMENT STATUS
-            // =========================
             $paymentStatus = 'pending';
 
-            // =========================
-            // CREATE ORDER
-            // =========================
             $order = Order::create([
                 'user_id' => $user->id,
                 'order_number' => 'ORD-' . now()->format('Ymd') . '-' . strtoupper(substr(uniqid(), -6)),
-
                 'customer_name' => $request->customer_name,
                 'phone' => $request->phone,
                 'city' => $city->name,
@@ -97,22 +74,15 @@ class OrderController extends Controller
                 'address' => $request->address,
                 'total_price' => 0,
                 'delivery_charge' => $deliveryCharge,
-
                 'status' => 'pending',
-
                 'payment_status' => $paymentStatus,
             ]);
 
             $total = 0;
 
-            // =========================
-            // PROCESS CART
-            // =========================
             foreach ($cartItems as $item) {
 
-                // VALIDATION
                 if (!isset($item['product_id'], $item['quantity'])) {
-
                     DB::rollBack();
 
                     return response()->json([
@@ -122,7 +92,6 @@ class OrderController extends Controller
                 }
 
                 if ($item['quantity'] <= 0) {
-
                     DB::rollBack();
 
                     return response()->json([
@@ -131,9 +100,6 @@ class OrderController extends Controller
                     ], 400);
                 }
 
-                // =========================
-                // FETCH PRODUCT
-                // =========================
                 $product = Product::where('id', $item['product_id'])
                     ->whereHas('shop', function ($q) {
                         $q->where('is_approved', 1);
@@ -142,7 +108,6 @@ class OrderController extends Controller
                     ->first();
 
                 if (!$product) {
-
                     DB::rollBack();
 
                     return response()->json([
@@ -151,11 +116,7 @@ class OrderController extends Controller
                     ], 400);
                 }
 
-                // =========================
-                // STOCK CHECK
-                // =========================
                 if ($item['quantity'] > $product->stock) {
-
                     DB::rollBack();
 
                     return response()->json([
@@ -164,41 +125,23 @@ class OrderController extends Controller
                     ], 400);
                 }
 
-                // =========================
-                // CALCULATE SUBTOTAL
-                // =========================
                 $subtotal = $product->price * $item['quantity'];
-
                 $total += $subtotal;
 
-                // =========================
-                // CREATE ORDER ITEM
-                // =========================
                 OrderItem::create([
                     'order_id' => $order->id,
-
                     'shop_id' => $product->shop_id,
-
                     'product_id' => $product->id,
-
                     'quantity' => $item['quantity'],
-
                     'price' => $product->price,
-
                     'status' => 'pending',
                 ]);
             }
 
-            // =========================
-            // UPDATE TOTAL (items + delivery charge)
-            // =========================
             $order->update([
                 'total_price' => $total + $deliveryCharge,
             ]);
 
-            // =========================
-            // CREATE PAYMENT RECORD
-            // =========================
             Payment::create([
                 'order_id' => $order->id,
                 'payment_method' => $request->payment_method,
@@ -218,7 +161,6 @@ class OrderController extends Controller
             ]);
 
         } catch (\Exception $e) {
-
             DB::rollBack();
 
             return response()->json([
@@ -235,15 +177,10 @@ class OrderController extends Controller
     {
         return response()->json([
             'success' => true,
-
-            'orders' => Order::with(
-                'payment',
-                'items.product',
-                'items.shop'
-            )
-            ->where('user_id', $request->user()->id)
-            ->latest()
-            ->get(),
+            'orders' => Order::with('payment', 'items.product', 'items.shop')
+                ->where('user_id', $request->user()->id)
+                ->latest()
+                ->get(),
         ]);
     }
 
@@ -254,23 +191,13 @@ class OrderController extends Controller
     {
         return response()->json([
             'success' => true,
-
-            'orders' => Order::with(
-                'payment',
-                'items.product',
-                'items.shop'
-            )
-            ->where('user_id', $request->user()->id)
-
-            ->whereHas('items', function ($q) {
-                $q->whereNotIn('status', [
-                    'delivered',
-                    'cancelled',
-                ]);
-            })
-
-            ->latest()
-            ->get(),
+            'orders' => Order::with('payment', 'items.product', 'items.shop')
+                ->where('user_id', $request->user()->id)
+                ->whereHas('items', function ($q) {
+                    $q->whereNotIn('status', ['delivered', 'cancelled']);
+                })
+                ->latest()
+                ->get(),
         ]);
     }
 
@@ -281,23 +208,13 @@ class OrderController extends Controller
     {
         return response()->json([
             'success' => true,
-
-            'orders' => Order::with(
-                'payment',
-                'items.product',
-                'items.shop'
-            )
-            ->where('user_id', $request->user()->id)
-
-            ->whereDoesntHave('items', function ($q) {
-                $q->whereNotIn('status', [
-                    'delivered',
-                    'cancelled',
-                ]);
-            })
-
-            ->latest()
-            ->get(),
+            'orders' => Order::with('payment', 'items.product', 'items.shop')
+                ->where('user_id', $request->user()->id)
+                ->whereDoesntHave('items', function ($q) {
+                    $q->whereNotIn('status', ['delivered', 'cancelled']);
+                })
+                ->latest()
+                ->get(),
         ]);
     }
 
@@ -312,7 +229,6 @@ class OrderController extends Controller
             ->first();
 
         if (!$order) {
-
             return response()->json([
                 'success' => false,
                 'message' => 'Order not found or unauthorized',
@@ -320,33 +236,21 @@ class OrderController extends Controller
         }
 
         if ($order->status !== 'pending') {
-
-           return response()->json([
-            'success' => false,
-            'message' => 'Order cannot be cancelled now',
-        ], 400);
+            return response()->json([
+                'success' => false,
+                'message' => 'Order cannot be cancelled now',
+            ], 400);
         }
 
         $request->validate([
             'status' => 'required|in:cancelled',
         ]);
 
-        // =========================
-        // UPDATE ITEMS + RESTORE STOCK
-        // =========================
         foreach ($order->items as $item) {
-
-            $item->update([
-                'status' => 'cancelled',
-            ]);
+            $item->update(['status' => 'cancelled']);
         }
 
-        // =========================
-        // UPDATE ORDER
-        // =========================
-        $order->update([
-            'status' => 'cancelled',
-        ]);
+        $order->update(['status' => 'cancelled']);
 
         return response()->json([
             'success' => true,
@@ -360,33 +264,16 @@ class OrderController extends Controller
     // =========================
     public function adminOrders(Request $request)
     {
-        if (
-            !$request->user()->hasAnyRole([
-                'admin',
-                'super_admin',
-            ])
-        ) {
-
-            return response()->json([
-                'message' => 'Unauthorized',
-            ], 403);
+        if (!$request->user()->hasAnyRole(['admin', 'super_admin'])) {
+            return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         return response()->json([
             'success' => true,
-
-            'orders' => Order::with([
-                'user',
-                'payment',
-                'items.product',
-                'items.shop',
-            ])
-            -> whereNotIn('status', [
-                    'delivered',
-                    'cancelled',
-                ])
-            ->latest()
-            ->get(),
+            'orders' => Order::with(['user', 'payment', 'items.product', 'items.shop'])
+                ->whereNotIn('status', ['delivered', 'cancelled'])
+                ->latest()
+                ->get(),
         ]);
     }
 
@@ -395,99 +282,106 @@ class OrderController extends Controller
     // =========================
     public function adminOrderHistory(Request $request)
     {
-        if (
-            !$request->user()->hasAnyRole([
-                'admin',
-                'super_admin',
-            ])
-        ) {
-
-            return response()->json([
-                'message' => 'Unauthorized',
-            ], 403);
+        if (!$request->user()->hasAnyRole(['admin', 'super_admin'])) {
+            return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         return response()->json([
             'success' => true,
-
-            'orders' => Order::with([
-                'user',
-                'payment',
-                'items.product',
-                'items.shop',
-            ])
-            -> whereIn('status', [
-                    'delivered',
-                    'cancelled',
-                ])
-            ->latest()
-            ->get(),
+            'orders' => Order::with(['user', 'payment', 'items.product', 'items.shop'])
+                ->whereIn('status', ['delivered', 'cancelled'])
+                ->latest()
+                ->get(),
         ]);
     }
 
     // =========================
     // ADMIN UPDATE ORDER ITEM STATUS
-    // (renamed from adminUpdateOrderStatus to match the route binding)
     // =========================
     public function adminUpdateOrderItemStatus(Request $request, $id)
     {
-        if (
-             !$request->user()->hasAnyRole([
-             'admin',
-             'super_admin',
-            ])
-        ) {
-           return response()->json([
-             'message' => 'Unauthorized',
-        ], 403);
+        if (!$request->user()->hasAnyRole(['admin', 'super_admin'])) {
+            return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-       $request->validate([
-        'status' => 'required|in:pending,processing,shipped,delivered,cancelled',
+        $request->validate([
+            'status' => 'required|in:pending,processing,shipped,delivered,cancelled',
         ]);
 
-      $item = OrderItem::with('order', 'product')->findOrFail($id);
+        $item = OrderItem::with('order', 'product')->findOrFail($id);
 
-       // =========================
-       // PAYMENT CHECK
-       // =========================
-       if ($item->order->payment_status !== 'paid' && $request->status !== 'cancelled') {
-          return response()->json([
-             'success' => false,
-             'message' => 'Payment not approved yet'
+        if ($item->order->payment_status !== 'paid' && $request->status !== 'cancelled') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment not approved yet'
             ], 400);
         }
 
-       // =========================
-      // PREVENT CHANGES AFTER DELIVERY
-      // (matches SellerOrderController's rule, so admin can't undo a delivered item either)
-      // =========================
-      if ($item->status === 'delivered') {
-         return response()->json([
-             'success' => false,
-             'message' => 'Delivered order cannot be changed'
+        if ($item->status === 'delivered') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Delivered order cannot be changed'
             ], 400);
         }
 
-      // =========================
-      // UPDATE ITEM STATUS
-     // =========================
-      $item->update([
-         'status' => $request->status,
+        $item->update(['status' => $request->status]);
+
+        $order = $item->order;
+        $this->syncOrderStatus($order);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Order item updated',
+            'item' => $item->fresh(),
+            'order_status' => $order->status,
         ]);
+    }
 
-      // =========================
-      // SYNC ORDER STATUS
-      // =========================
-      $order = $item->order;
+    // =========================
+    // CUSTOMER CONFIRMS THEY RECEIVED AN ITEM
+    // =========================
+    public function confirmReceived(Request $request, $id)
+    {
+        $item = OrderItem::with('order')
+            ->where('id', $id)
+            ->whereHas('order', fn ($q) => $q->where('user_id', $request->user()->id))
+            ->first();
 
-       $this->syncOrderStatus($order);
+        if (!$item) {
+            return response()->json(['success' => false, 'message' => 'Item not found'], 404);
+        }
 
-      return response()->json([
-         'success' => true,
-         'message' => 'Order item updated',
-         'item' => $item->fresh(),
-         'order_status' => $order->status,
+        if ($item->status !== 'delivered') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Item is not marked delivered yet',
+            ], 400);
+        }
+
+        if ($item->customer_confirmed_at) {
+            return response()->json(['success' => false, 'message' => 'Already confirmed'], 400);
+        }
+
+        $item->update(['customer_confirmed_at' => now()]);
+
+        // If every item from this shop, in this order, is now confirmed,
+        // the payout for that shop becomes eligible for admin to pay out.
+        $stillUnconfirmed = OrderItem::where('order_id', $item->order_id)
+            ->where('shop_id', $item->shop_id)
+            ->whereNull('customer_confirmed_at')
+            ->exists();
+
+        if (!$stillUnconfirmed) {
+            SellerPayout::where('order_id', $item->order_id)
+                ->where('shop_id', $item->shop_id)
+                ->where('status', 'pending')
+                ->update(['status' => 'ready']);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Thanks for confirming!',
+            'item' => $item->fresh(),
         ]);
     }
 
@@ -499,23 +393,14 @@ class OrderController extends Controller
         $statuses = $order->items()->pluck('status');
 
         if ($statuses->every(fn($s) => $s == 'delivered')) {
-
             $order->status = 'delivered';
-
         } elseif ($statuses->every(fn($s) => $s == 'cancelled')) {
-
             $order->status = 'cancelled';
-
         } elseif ($statuses->contains('processing')) {
-
             $order->status = 'processing';
-
         } elseif ($statuses->contains('shipped')) {
-
             $order->status = 'shipped';
-
         } else {
-
             $order->status = 'pending';
         }
 

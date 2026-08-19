@@ -9,6 +9,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RiceCategoryController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\PayoutController;
 use App\Http\Controllers\SellerOrderController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
@@ -150,6 +151,11 @@ Route::middleware('auth:sanctum')->group(function () {
         'orderHistory'
     ])->middleware('permission:view own orders');
 
+    Route::put('/order-item/{id}/confirm-received', [
+      OrderController::class,
+      'confirmReceived'
+    ])->middleware('permission:view own orders');
+
     //
     // =========================================
     // SHOPS
@@ -203,6 +209,12 @@ Route::middleware('auth:sanctum')->group(function () {
         SellerOrderController::class,
         'updateStatus'
     ])->middleware('permission:update order status');
+
+    // Seller Payout Details 
+    Route::put('/my-shop/payout-details', [
+       ShopController::class,
+       'updatePayoutDetails'
+    ])->middleware('permission:update own shop');
 
     //
     // =========================================
@@ -357,11 +369,6 @@ Route::middleware('auth:sanctum')->group(function () {
         'adminUpdateOrderItemStatus'
     ])->middleware('permission:update any order status');
 
-    // Route::put('/admin/orders/{id}/status', [
-    //     OrderController::class,
-    //     'adminUpdateOrderStatus'
-    // ])->middleware('permission:update any order status');
-
     Route::put('/orders/{id}/status', [
         OrderController::class,
         'updateStatus'
@@ -451,6 +458,20 @@ Route::middleware([
         PaymentController::class,
         'updatePaymentStatus'
     ]);
+
+    // =========================
+    // ADMIN — LIST ALL PAYOUTS
+    // =========================
+
+    Route::get('/admin/payouts', [
+        PayoutController::class,
+        'index'
+    ])->middleware('permission:update any order status');
+
+    Route::post('/admin/payouts/{id}/pay', [
+       PayoutController::class,
+       'pay'
+    ])->middleware('permission:update any order status');
 
     // shop review route
 

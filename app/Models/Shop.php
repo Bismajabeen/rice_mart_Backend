@@ -26,6 +26,10 @@ class Shop extends Model
 
         'correction_reason',
         'correction_requested_at',
+
+        'payout_method',
+        'payout_account_number',
+        'payout_account_name',
     ];
 
     public function riceCategories()
@@ -33,7 +37,7 @@ class Shop extends Model
         return $this->hasMany(RiceCategory::class);
     }
             // $shop->user
-    public function user()
+   public function user()
    {
     return $this->belongsTo(User::class);
    }
@@ -42,5 +46,11 @@ class Shop extends Model
     public function orderItems()
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    // $shop->payouts
+    public function payouts()
+    {
+        return $this->hasMany(SellerPayout::class);
     }
 }

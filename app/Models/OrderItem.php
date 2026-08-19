@@ -14,17 +14,30 @@ class OrderItem extends Model
         'quantity',
         'price',
         'status',
+        'commission_amount',
+        'net_amount',
+        'customer_confirmed_at',
     ];
- // product Relation
+
+    protected $casts = [
+        'price' => 'float',
+        'commission_amount' => 'float',
+        'net_amount' => 'float',
+        'customer_confirmed_at' => 'datetime',
+    ];
+
+    // product Relation
     public function product()
     {
         return $this->belongsTo(Product::class);
     }
-  // Shop realation 
-   public function shop()
-   {
+
+    // Shop realation
+    public function shop()
+    {
         return $this->belongsTo(Shop::class);
-   }
+    }
+
     // =========================
     // ORDER RELATION
     // =========================
@@ -38,5 +51,4 @@ class OrderItem extends Model
     {
         return $this->hasOne(ShopReview::class);
     }
-
 }
