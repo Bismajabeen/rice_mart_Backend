@@ -3,124 +3,79 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\User;
-use App\Models\Shop;
-use App\Models\Order;
-use App\Models\OrderItem;
-use App\Models\Product;
+use App\Models\RiceCategory;
 
-class DashboardController extends Controller
+class RiceCategoryController extends Controller
 {
     // =========================
-    // CUSTOMER DASHBOARD
+    // FETCH ACTIVE CATEGORIES
     // =========================
-    public function customerDashboard(Request $request)
+    public function index()
     {
-        $user = $request->user();
+        $categories = RiceCategory::where('status', true)
+            ->latest()
+            ->get();
 
-        $totalOrders = Order::where('user_id', $user->id)->count();
+        return response()->json($categories);
+    }
 
-        $activeOrders = Order::where('user_id', $user->id)
-            ->where('status', '!=', 'delivered')
-            ->count();
+    // =========================
+    // FETCH ALL CATEGORIES
+    // ADMIN PURPOSE
+    // =========================
+    public function allCategories()
+    {
+        return response()->json(
+            RiceCategory::latest()->get()
+        );
+    }
 
-        $completedOrders = Order::where('user_id', $user->id)
-            ->where('status', 'delivered')
-            ->count();
+    // =========================
+    // CREATE CATEGORY (ADMIN)
+    // =========================
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255|unique:rice_categories,name',
+        ]);
+
+        $category = RiceCategory::create([
+            'name' => $request->name,
+            'image' => null,
+            'status' => true,
+        ]);
 
         return response()->json([
             'success' => true,
-            'data' => [
-                'total_orders' => $totalOrders,
-                'active_orders' => $activeOrders,
-                'completed_orders' => $completedOrders,
-            ]
+            'message' => 'Category added',
+            'category' => $category,
         ]);
     }
 
     // =========================
-    // SELLER DASHBOARD
+    // UPDATE CATEGORY STATUS
     // =========================
-    public function sellerDashboard(Request $request)
+    public function updateStatus(Request $request, $id)
     {
-        $user = $request->user();
+        $category = RiceCategory::find($id);
 
-        $shop = $user->shop;
-
-        if (!$shop) {
+        if (!$category) {
             return response()->json([
-                'success' => false,
-                'message' => 'Shop not found'
+                'message' => 'Category not found'
             ], 404);
         }
 
-        $totalProducts = Product::where('shop_id', $shop->id)->count();
-
-        $activeProducts = Product::where('shop_id', $shop->id)
-            ->where('stock', '>', 0)
-            ->count();
-
-        $totalOrders = OrderItem::where('shop_id', $shop->id)
-            ->distinct('order_id')
-            ->count('order_id');
-
-        $pendingOrders = OrderItem::where('shop_id', $shop->id)
-            ->where('status', 'pending')
-            ->count();
-
-        $processingOrders = OrderItem::where('shop_id', $shop->id)
-            ->where('status', 'processing')
-            ->count();
-
-        $deliveredOrders = OrderItem::where('shop_id', $shop->id)
-            ->where('status', 'delivered')
-            ->count();
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'total_products' => $totalProducts,
-                'active_products' => $activeProducts,
-
-                'total_orders' => $totalOrders,
-
-                'pending_orders' => $pendingOrders,
-                'processing_orders' => $processingOrders,
-                'delivered_orders' => $deliveredOrders,
-            ]
+        $request->validate([
+            'status' => 'required|boolean'
         ]);
-    }
 
-    // =========================
-    // ADMIN DASHBOARD
-    // =========================
-    public function adminDashboard()
-    {
-        $totalUsers = User::count();
-
-        $totalSellers = User::role('seller')->count();
-
-        $totalCustomers = User::role('customer')->count();
-
-        $totalShops = Shop::count();
-
-        $totalOrders = Order::count();
-
-        $totalRevenue = Order::sum('total_price');
-
-        $activeProducts = Product::where('stock', '>', 0)->count();
+        $category->update([
+            'status' => $request->status
+        ]);
 
         return response()->json([
-            'success' => true,
-            'data' => [
-                'total_users' => $totalUsers,
-                'total_sellers' => $totalSellers,
-                'total_customers' => $totalCustomers,
-                'total_shops' => $totalShops,
-                'total_orders' => $totalOrders,
-                'total_revenue' => $totalRevenue,
-                'active_products' => $activeProducts,
-            ]
+            'message' => 'Category status updated',
+            'category' => $category
         ]);
     }
 }

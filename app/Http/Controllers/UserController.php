@@ -11,9 +11,13 @@ use Illuminate\Support\Facades\Hash;
 class UserController extends Controller
 {
     // =========================
+    // ROLES A NON-SUPER-ADMIN IS ALLOWED TO GRANT
+    // =========================
+    private const RESTRICTED_ROLES = ['admin', 'super_admin'];
+
+    // =========================
     // GET ALL USERS
     // =========================
-
     public function index()
     {
         return response()->json(
@@ -26,7 +30,6 @@ class UserController extends Controller
     // =========================
     // GET ALL ROLES
     // =========================
-
     public function roles()
     {
         return response()->json(
@@ -37,7 +40,6 @@ class UserController extends Controller
     // =========================
     // CREATE USER
     // =========================
-
     public function store(Request $request)
     {
         $request->validate([
@@ -46,6 +48,20 @@ class UserController extends Controller
             'password' => 'required|min:6',
             'role'     => 'required|exists:roles,name',
         ]);
+
+        // =========================
+        // PRIVILEGE ESCALATION GUARD
+        // Only a super_admin can grant admin/super_admin roles.
+        // =========================
+        if (
+            in_array($request->role, self::RESTRICTED_ROLES) &&
+            !$request->user()->hasRole('super_admin')
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only a super admin can assign this role',
+            ], 403);
+        }
 
         $user = User::create([
             'name'     => $request->name,
@@ -65,7 +81,6 @@ class UserController extends Controller
     // =========================
     // UPDATE USER
     // =========================
-
     public function update(Request $request, $id)
     {
         $user = User::findOrFail($id);
@@ -88,6 +103,20 @@ class UserController extends Controller
             'role' => 'required|exists:roles,name',
         ]);
 
+        // =========================
+        // PRIVILEGE ESCALATION GUARD
+        // Only a super_admin can promote someone to admin/super_admin.
+        // =========================
+        if (
+            in_array($request->role, self::RESTRICTED_ROLES) &&
+            !$request->user()->hasRole('super_admin')
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only a super admin can assign this role',
+            ], 403);
+        }
+
         $user->update([
             'name'  => $request->name,
             'email' => $request->email,
@@ -105,12 +134,10 @@ class UserController extends Controller
     // =========================
     // DELETE USER
     // =========================
-
     public function destroy($id)
     {
         $user = User::findOrFail($id);
 
-        // Prevent deleting yourself
         if (auth()->id() == $user->id) {
             return response()->json([
                 'success' => false,
@@ -118,7 +145,6 @@ class UserController extends Controller
             ], 403);
         }
 
-        // Protect Super Admin
         if ($user->hasRole('super_admin')) {
             return response()->json([
                 'success' => false,
@@ -126,7 +152,6 @@ class UserController extends Controller
             ], 403);
         }
 
-        // Protect Admin
         if ($user->hasRole('admin')) {
             return response()->json([
                 'success' => false,
