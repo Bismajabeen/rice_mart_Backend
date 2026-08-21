@@ -16,156 +16,171 @@ class OrderController extends Controller
     // =========================
     // CHECKOUT (CUSTOMER)
     // =========================
-    public function checkout(Request $request)
-    {
-        $user = $request->user();
 
-        $request->validate([
-            'customer_name' => 'required|string|max:255',
-            'phone' => 'required|string|max:20',
-            'city_id' => 'required|exists:cities,id',
-            'address' => 'required|string',
-            'payment_method' => 'required|in:easypaisa,jazzcash,card',
-            'transaction_id' => 'required_if:payment_method,easypaisa,jazzcash|string|max:255',
-            'cart' => 'required|array|min:1',
+   public function checkout(Request $request)
+   {
+     $user = $request->user();
+
+     $request->validate([
+         'customer_name' => 'required|string|max:255',
+         'phone' => 'required|string|max:20',
+         'city_id' => 'required|exists:cities,id',
+         'address' => 'required|string',
+         'payment_method' => 'required|in:easypaisa,jazzcash,card',
+         'transaction_id' => 'required_if:payment_method,easypaisa,jazzcash|string|max:255',
+         'cart' => 'required|array|min:1',
         ]);
 
-        $cartItems = $request->cart;
+     $cartItems = $request->cart;
 
-        DB::beginTransaction();
+     DB::beginTransaction();
 
-        try {
+     try {
 
-            $city = \App\Models\City::with('courierCharge')->find($request->city_id);
+         $city = \App\Models\City::with('courierCharge')->find($request->city_id);
 
-            if (!$city || !$city->courierCharge) {
-                DB::rollBack();
+         if (!$city || !$city->courierCharge) {
+            DB::rollBack();
 
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Delivery is not available for the selected city',
+             return response()->json([
+                 'success' => false,
+                 'message' => 'Delivery is not available for the selected city',
                 ], 400);
             }
 
-            $deliveryCharge = (float) $city->courierCharge->charge;
+         $deliveryChargePerShop = (float) $city->courierCharge->charge;
 
-            $paymentProof = null;
+         $paymentProof = null;
 
-            if (in_array($request->payment_method, ['easypaisa', 'jazzcash'])) {
+         if (in_array($request->payment_method, ['easypaisa', 'jazzcash'])) {
 
-                $request->validate([
-                    'payment_proof' => 'required|image|max:2048',
+             $request->validate([
+                 'payment_proof' => 'required|image|max:2048',
                 ]);
 
-                if ($request->hasFile('payment_proof')) {
-                    $paymentProof = $request->file('payment_proof')->store('payments', 'public');
+             if ($request->hasFile('payment_proof')) {
+                 $paymentProof = $request->file('payment_proof')->store('payments', 'public');
                 }
             }
 
-            $paymentStatus = 'pending';
+         $paymentStatus = 'pending';
 
-            $order = Order::create([
-                'user_id' => $user->id,
-                'order_number' => 'ORD-' . now()->format('Ymd') . '-' . strtoupper(substr(uniqid(), -6)),
-                'customer_name' => $request->customer_name,
-                'phone' => $request->phone,
-                'city' => $city->name,
-                'city_id' => $city->id,
-                'address' => $request->address,
-                'total_price' => 0,
-                'delivery_charge' => $deliveryCharge,
-                'status' => 'pending',
-                'payment_status' => $paymentStatus,
+          // =========================
+          // CREATE ORDER (delivery_charge/total_price finalized below,
+          // once we know how many distinct shops are in the cart)
+          // =========================
+         $order = Order::create([
+             'user_id' => $user->id,
+             'order_number' => 'ORD-' . now()->format('Ymd') . '-' . strtoupper(substr(uniqid(), -6)),
+             'customer_name' => $request->customer_name,
+             'phone' => $request->phone,
+             'city' => $city->name,
+             'city_id' => $city->id,
+             'address' => $request->address,
+             'total_price' => 0,
+             'delivery_charge' => 0,
+             'status' => 'pending',
+             'payment_status' => $paymentStatus,
             ]);
 
-            $total = 0;
+         $total = 0;
+         $shopIds = [];
 
-            foreach ($cartItems as $item) {
+         foreach ($cartItems as $item) {
 
-                if (!isset($item['product_id'], $item['quantity'])) {
-                    DB::rollBack();
+            if (!isset($item['product_id'], $item['quantity'])) {
+                 DB::rollBack();
 
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Invalid cart structure',
+                 return response()->json([
+                     'success' => false,
+                     'message' => 'Invalid cart structure',
                     ], 400);
                 }
 
-                if ($item['quantity'] <= 0) {
-                    DB::rollBack();
+            if ($item['quantity'] <= 0) {
+                 DB::rollBack();
 
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Quantity must be greater than 0',
+                 return response()->json([
+                     'success' => false,
+                     'message' => 'Quantity must be greater than 0',
                     ], 400);
                 }
 
-                $product = Product::where('id', $item['product_id'])
-                    ->whereHas('shop', function ($q) {
-                        $q->where('is_approved', 1);
+             $product = Product::where('id', $item['product_id'])
+                 ->whereHas('shop', function ($q) {
+                     $q->where('is_approved', 1);
                     })
-                    ->lockForUpdate()
-                    ->first();
+                 ->lockForUpdate()
+                 ->first();
 
-                if (!$product) {
-                    DB::rollBack();
+            if (!$product) {
+                 DB::rollBack();
 
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Product not found or inactive shop',
+                 return response()->json([
+                     'success' => false,
+                     'message' => 'Product not found or inactive shop',
                     ], 400);
                 }
 
-                if ($item['quantity'] > $product->stock) {
-                    DB::rollBack();
+            if ($item['quantity'] > $product->stock) {
+                 DB::rollBack();
 
-                    return response()->json([
-                        'success' => false,
-                        'message' => $product->name . ' stock not available',
+                 return response()->json([
+                     'success' => false,
+                     'message' => $product->name . ' stock not available',
                     ], 400);
                 }
 
-                $subtotal = $product->price * $item['quantity'];
-                $total += $subtotal;
+             $subtotal = $product->price * $item['quantity'];
+             $total += $subtotal;
 
-                OrderItem::create([
-                    'order_id' => $order->id,
-                    'shop_id' => $product->shop_id,
-                    'product_id' => $product->id,
-                    'quantity' => $item['quantity'],
-                    'price' => $product->price,
-                    'status' => 'pending',
+             $shopIds[] = $product->shop_id;
+
+             OrderItem::create([
+                 'order_id' => $order->id,
+                 'shop_id' => $product->shop_id,
+                 'product_id' => $product->id,
+                 'quantity' => $item['quantity'],
+                 'price' => $product->price,
+                 'status' => 'pending',
                 ]);
             }
 
-            $order->update([
-                'total_price' => $total + $deliveryCharge,
+          // =========================
+         // DELIVERY CHARGE — one charge PER DISTINCT SHOP, not per order
+         // =========================
+         $shopCount = count(array_unique($shopIds));
+         $deliveryCharge = $deliveryChargePerShop * $shopCount;
+
+         $order->update([
+             'total_price' => $total + $deliveryCharge,
+             'delivery_charge' => $deliveryCharge,
             ]);
 
-            Payment::create([
-                'order_id' => $order->id,
-                'payment_method' => $request->payment_method,
-                'payment_type' => 'manual',
-                'amount' => $total + $deliveryCharge,
-                'transaction_id' => $request->transaction_id,
-                'screenshot_path' => $paymentProof,
-                'status' => $paymentStatus,
+         Payment::create([
+             'order_id' => $order->id,
+             'payment_method' => $request->payment_method,
+             'payment_type' => 'manual',
+             'amount' => $total + $deliveryCharge,
+             'transaction_id' => $request->transaction_id,
+             'screenshot_path' => $paymentProof,
+             'status' => $paymentStatus,
             ]);
 
-            DB::commit();
+         DB::commit();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Order placed successfully',
-                'order' => $order,
+         return response()->json([
+             'success' => true,
+             'message' => 'Order placed successfully',
+             'order' => $order,
             ]);
 
-        } catch (\Exception $e) {
-            DB::rollBack();
+     } catch (\Exception $e) {
+         DB::rollBack();
 
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
+         return response()->json([
+             'success' => false,
+             'message' => $e->getMessage(),
             ], 500);
         }
     }
