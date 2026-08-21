@@ -16,11 +16,21 @@ class AuthController extends Controller
     // =========================
     public function register(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email',
-            'password' => 'required|min:6',
-        ]);
+        $request->validate(
+            [
+                'name' => 'required|string|max:255',
+                // 'email' rule catches missing "@" / bad format.
+                // 'dns' checks that the domain actually has valid MX/A records,
+                // so fake domains like abc@gmial.com get rejected here too.
+               'email' => 'required|email:rfc,dns',
+                'password' => 'required|min:6',
+            ],
+            [
+                'email.required' => 'Email is required.',
+                'email.email' => 'Email format is not correct.',
+                'email.dns' => 'This email does not seem to exist. Please enter a valid email.',
+            ]
+        );
 
         $existingUser = User::where('email', $request->email)->first();
 
@@ -56,7 +66,21 @@ class AuthController extends Controller
             $user->assignRole('customer');
         }
 
-        Mail::to($user->email)->send(new OtpMail($otp, $user->name));
+        // Even after passing DNS validation, actual SMTP send can still fail
+        // (e.g. mailbox doesn't exist, server rejects it). Catch that too.
+        try {
+            Mail::to($user->email)->send(new OtpMail($otp, $user->name));
+        } catch (\Exception $e) {
+            // Don't leave a half-registered user sitting in the DB if mail failed
+            // and it was a brand-new registration (not a resend on existing unverified user).
+            if (!$existingUser) {
+                $user->delete();
+            }
+
+            return response()->json([
+                'message' => 'Could not send OTP to this email. Please check the email is valid.',
+            ], 422);
+        }
 
         return response()->json([
             'message' => 'OTP sent to your email. Please verify to complete registration.',

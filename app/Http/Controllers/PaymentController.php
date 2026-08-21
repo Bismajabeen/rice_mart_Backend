@@ -4,12 +4,9 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Payment;
-<<<<<<< HEAD
-use App\Models\Shop;
-=======
 use App\Models\OrderItem;
 use App\Models\SellerPayout;
->>>>>>> 7f980556c6bdb03100a65d819193700b3e0f0ae0
+use App\Models\Shop;
 use Illuminate\Support\Facades\DB;
 use App\Services\NotificationService;
 
@@ -200,9 +197,10 @@ class PaymentController extends Controller
                 ]);
 
                 // =========================
-                // NOTIFY SELLER(S) — new order ready to prepare
-                // (an order can contain items from multiple shops, so
-                // notify every distinct shop owner involved, once each)
+                // NOTIFY SELLER(S) — new order ready to prepare, and
+                // payment verified (an order can contain items from
+                // multiple shops, so notify every distinct shop owner
+                // involved, once each)
                 // =========================
                 $shopIds = $order->items->pluck('shop_id')->unique();
 
@@ -215,6 +213,17 @@ class PaymentController extends Controller
                             'order_placed',
                             'New order received',
                             'You have a new order: ' . $order->order_number,
+                            ['order_id' => $order->id]
+                        );
+
+                        // =========================
+                        // NOTIFY SELLER — payment verified, ready to prepare
+                        // =========================
+                        NotificationService::send(
+                            $shop->user,
+                            'payment_status',
+                            'Payment verified',
+                            'Payment for order ' . $order->order_number . ' has been verified. You can start preparing the order.',
                             ['order_id' => $order->id]
                         );
                     }

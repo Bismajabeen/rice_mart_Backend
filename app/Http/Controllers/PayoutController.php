@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\SellerPayout;
+use App\Services\NotificationService;
 
 class PayoutController extends Controller
 {
@@ -33,7 +34,7 @@ class PayoutController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $payout = SellerPayout::findOrFail($id);
+        $payout = SellerPayout::with('shop')->findOrFail($id);
 
         if ($payout->status !== 'ready') {
             return response()->json([
@@ -58,6 +59,21 @@ class PayoutController extends Controller
             'paid_at' => now(),
             'paid_by' => $request->user()->id,
         ]);
+
+        // =========================
+        // NOTIFY SELLER — payout sent
+        // =========================
+        $shop = $payout->shop;
+
+        if ($shop && $shop->user) {
+            NotificationService::send(
+                $shop->user,
+                'payout_paid',
+                'Payout sent',
+                'Your payout of Rs ' . number_format($payout->net_amount, 2) . ' has been sent via ' . $request->payout_method . '.',
+                ['payout_id' => $payout->id]
+            );
+        }
 
         return response()->json([
             'success' => true,

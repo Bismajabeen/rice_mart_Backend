@@ -165,6 +165,17 @@ class OrderController extends Controller
                 ['order_id' => $order->id]
             );
 
+            // =========================
+            // NOTIFY BUYER — order placed confirmation
+            // =========================
+            NotificationService::send(
+                $user,
+                'order_status',
+                'Order placed',
+                'Your order ' . $order->order_number . ' has been placed successfully.',
+                ['order_id' => $order->id]
+            );
+
             DB::commit();
 
             return response()->json([
@@ -398,10 +409,26 @@ class OrderController extends Controller
             ->exists();
 
         if (!$stillUnconfirmed) {
-            SellerPayout::where('order_id', $item->order_id)
+            $updated = SellerPayout::where('order_id', $item->order_id)
                 ->where('shop_id', $item->shop_id)
                 ->where('status', 'pending')
                 ->update(['status' => 'ready']);
+
+            // =========================
+            // NOTIFY ADMINS — payout ready to release
+            // =========================
+            if ($updated) {
+                $payout = SellerPayout::where('order_id', $item->order_id)
+                    ->where('shop_id', $item->shop_id)
+                    ->first();
+
+                NotificationService::sendToAdmins(
+                    'payment_release',
+                    'Payout ready',
+                    'Customer confirmed receipt for order ' . ($item->order->order_number ?? $item->order_id) . ' — ready to pay seller.',
+                    ['order_id' => $item->order_id, 'payout_id' => $payout?->id]
+                );
+            }
         }
 
         return response()->json([
@@ -443,6 +470,16 @@ class OrderController extends Controller
         if ($order->status !== $oldStatus && $order->status !== 'pending') {
 
             Mail::to($order->user->email)->send(new OrderStatusUpdated($order));
+
+            if ($order->status === 'processing') {
+                NotificationService::send(
+                    $order->user,
+                    'order_status',
+                    'Order processing',
+                    'Your order ' . $order->order_number . ' is now being processed.',
+                    ['order_id' => $order->id]
+                );
+            }
 
             if ($order->status === 'shipped') {
                 NotificationService::send(
