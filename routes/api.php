@@ -26,7 +26,9 @@ use App\Http\Controllers\Api\CityController;
 use App\Http\Controllers\Api\CourierChargeController;
 //admin settings controller
 use App\Http\Controllers\PaymentSettingController;
+use App\Http\Controllers\StripeController;
 
+ // outside auth:sanctum — Stripe calls this directly
 //
 // =========================================
 // AUTH ROUTES
@@ -210,7 +212,7 @@ Route::middleware('auth:sanctum')->group(function () {
         'updateStatus'
     ])->middleware('permission:update order status');
 
-    // Seller Payout Details 
+    // Seller Payout Details
     Route::put('/my-shop/payout-details', [
        ShopController::class,
        'updatePayoutDetails'
@@ -546,3 +548,5 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // AI Recommendation (no auth required — public endpoint)
 Route::post('/ai-recommendation', [AiRecommendationController::class, 'recommend']);
+Route::middleware('auth:sanctum')->post('/stripe/create-intent', [StripeController::class, 'createPaymentIntent']);
+Route::post('/stripe/webhook', [StripeController::class, 'webhook']);

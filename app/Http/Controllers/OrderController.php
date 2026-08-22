@@ -50,7 +50,13 @@ class OrderController extends Controller
                 ], 400);
             }
 
-            $deliveryCharge = (float) $city->courierCharge->charge;
+            // Per-shop delivery charge. The final delivery charge is this
+            // multiplied by the number of distinct shops in the cart (see
+            // below) — this MUST match the Flutter checkout screen's
+            // `deliveryCharge = perShopCharge * distinctShopCount` or the
+            // amount shown/confirmed by the customer won't match what's
+            // actually billed (and, for card orders, what Stripe charges).
+            $perShopCharge = (float) $city->courierCharge->charge;
 
             $paymentProof = null;
 
@@ -67,6 +73,9 @@ class OrderController extends Controller
 
             $paymentStatus = 'pending';
 
+            // Created with a placeholder delivery/total — both are
+            // recalculated and updated below once we know how many
+            // distinct shops are actually in the cart.
             $order = Order::create([
                 'user_id' => $user->id,
                 'order_number' => 'ORD-' . now()->format('Ymd') . '-' . strtoupper(substr(uniqid(), -6)),
@@ -76,12 +85,13 @@ class OrderController extends Controller
                 'city_id' => $city->id,
                 'address' => $request->address,
                 'total_price' => 0,
-                'delivery_charge' => $deliveryCharge,
+                'delivery_charge' => $perShopCharge,
                 'status' => 'pending',
                 'payment_status' => $paymentStatus,
             ]);
 
             $total = 0;
+            $shopIds = [];
 
             foreach ($cartItems as $item) {
 
@@ -131,6 +141,8 @@ class OrderController extends Controller
                 $subtotal = $product->price * $item['quantity'];
                 $total += $subtotal;
 
+                $shopIds[] = $product->shop_id;
+
                 OrderItem::create([
                     'order_id' => $order->id,
                     'shop_id' => $product->shop_id,
@@ -141,14 +153,30 @@ class OrderController extends Controller
                 ]);
             }
 
+            // =========================
+            // FINAL DELIVERY CHARGE = per-shop charge x distinct shops in
+            // this cart, matching the Flutter checkout screen's math.
+            // =========================
+            $shopCount = count(array_unique($shopIds));
+            $deliveryCharge = $perShopCharge * max($shopCount, 1);
+
             $order->update([
+                'delivery_charge' => $deliveryCharge,
                 'total_price' => $total + $deliveryCharge,
             ]);
 
+            // =========================
+            // payment_type reflects how this payment is verified:
+            // 'manual' -> an admin reviews a screenshot/transaction ID
+            // 'stripe' -> verified automatically via Stripe's webhook
+            // Card orders get this Payment row updated in-place by
+            // StripeController::createPaymentIntent() right after this
+            // — never a second row (payments.order_id is unique).
+            // =========================
             Payment::create([
                 'order_id' => $order->id,
                 'payment_method' => $request->payment_method,
-                'payment_type' => 'manual',
+                'payment_type' => $request->payment_method === 'card' ? 'stripe' : 'manual',
                 'amount' => $total + $deliveryCharge,
                 'transaction_id' => $request->transaction_id,
                 'screenshot_path' => $paymentProof,
@@ -157,6 +185,9 @@ class OrderController extends Controller
 
             // =========================
             // NOTIFY ADMINS — new order needs payment review
+            // (For card orders this still fires; harmless even though
+            // Stripe will verify it automatically a moment later — admins
+            // just see it flip to "paid" on its own via the webhook.)
             // =========================
             NotificationService::sendToAdmins(
                 'order_placed',
@@ -181,7 +212,7 @@ class OrderController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Order placed successfully',
-                'order' => $order,
+                'order' => $order->fresh(),
             ]);
 
         } catch (\Exception $e) {
