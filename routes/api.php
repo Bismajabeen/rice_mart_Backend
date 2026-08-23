@@ -360,6 +360,11 @@ Route::middleware('auth:sanctum')->group(function () {
         'reject'
     ])->middleware('permission:reject shops');
 
+    Route::get('/rejected-shops', [
+       ShopController::class,
+       'rejectedShops'
+    ])->middleware('permission:view all shops');
+
     //
     // =========================================
     // ADMIN ORDERS

@@ -64,7 +64,10 @@ class ShopController extends Controller
     public function pendingShops()
     {
         return response()->json(
-            Shop::latest()->where('is_approved', 0)->get()
+            Shop::latest()
+                  ->where('is_approved', 0)
+                  ->where('status', 'pending')
+                  ->get()
         );
     }
 
@@ -102,6 +105,32 @@ class ShopController extends Controller
             'success' => true,
             'shop' => $shop
         ]);
+    }
+
+    // =========================
+    // REJECT SHOP  
+    // =========================
+    public function reject($id)
+    {
+        $shop = Shop::findOrFail($id);  
+        $shop->update([
+            'is_approved' => 0,
+            'status' => 'rejected',
+            'correction_reason' => null,
+            'correction_requested_at' => null,
+        ]);
+        return response()->json([
+            'success' => true,
+            'message' => 'Shop rejected successfully',
+            'shop' => $shop
+        ]);
+    }
+
+    public function rejectedShops()
+    {
+        return response()->json(
+            Shop::latest()->where('status', 'rejected')->get()
+        );
     }
 
     // =========================
