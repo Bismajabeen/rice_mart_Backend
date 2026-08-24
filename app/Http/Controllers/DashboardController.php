@@ -8,6 +8,7 @@ use App\Models\Shop;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\Payment;
 
 class DashboardController extends Controller
 {
@@ -96,30 +97,42 @@ class DashboardController extends Controller
     // =========================
     public function adminDashboard()
     {
-        $totalUsers = User::count();
-
-        $totalSellers = User::role('seller')->count();
-
-        $totalCustomers = User::role('customer')->count();
-
-        $totalShops = Shop::count();
-
-        $totalOrders = Order::count();
-
-        $totalRevenue = Order::sum('total_price');
-
-        $activeProducts = Product::where('stock', '>', 0)->count();
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'total_users' => $totalUsers,
-                'total_sellers' => $totalSellers,
-                'total_customers' => $totalCustomers,
-                'total_shops' => $totalShops,
-                'total_orders' => $totalOrders,
-                'total_revenue' => $totalRevenue,
-                'active_products' => $activeProducts,
+      $totalUsers = User::count();
+ 
+      $totalSellers = User::role('seller')->count();
+ 
+      $totalCustomers = User::role('customer')->count();
+ 
+      $totalShops = Shop::count();
+ 
+      $pendingShops = Shop::where('status', 'pending')->count();
+ 
+      $approvedShops = Shop::where('status', 'approved')->count();
+ 
+      $rejectedShops = Shop::where('status', 'rejected')->count();
+ 
+      $totalOrders = Order::count();
+ 
+      $totalRevenue = Order::sum('total_price');
+ 
+      $activeProducts = Product::where('stock', '>', 0)->count();
+ 
+      $pendingPayments = Payment::where('status', 'pending')->count();
+ 
+     return response()->json([
+         'success' => true,
+         'data' => [
+             'total_users' => $totalUsers,
+             'total_sellers' => $totalSellers,
+             'total_customers' => $totalCustomers,
+             'total_shops' => $totalShops,
+             'pending_shops' => $pendingShops,
+             'approved_shops' => $approvedShops,
+             'rejected_shops' => $rejectedShops,
+             'total_orders' => $totalOrders,
+             'total_revenue' => $totalRevenue,
+             'active_products' => $activeProducts,
+             'pending_payments' => $pendingPayments,
             ]
         ]);
     }

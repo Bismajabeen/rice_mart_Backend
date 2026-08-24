@@ -25,7 +25,6 @@ class ShopController extends Controller
             'address' => 'required|string',
             'description' => 'nullable|string',
 
-            // CNIC has two sides — both are required on first submission
             'cnic_image' => 'required|image|max:2048',
             'cnic_back_image' => 'required|image|max:2048',
         ]);
@@ -76,7 +75,10 @@ class ShopController extends Controller
     public function pendingShops()
     {
         return response()->json(
-            Shop::latest()->where('is_approved', 0)->get()
+            Shop::latest()
+                  ->where('is_approved', 0)
+                  ->where('status', 'pending')
+                  ->get()
         );
     }
 
@@ -100,7 +102,6 @@ class ShopController extends Controller
         $shop->update([
             'is_approved' => 1,
             'status' => 'approved',
-            // clear any outstanding correction note — nothing left to fix
             'correction_reason' => null,
             'correction_requested_at' => null,
         ]);
@@ -129,19 +130,38 @@ class ShopController extends Controller
     }
 
     // =========================
+    // REJECT SHOP  
+    // =========================
+    public function reject($id)
+    {
+        $shop = Shop::findOrFail($id);  
+        $shop->update([
+            'is_approved' => 0,
+            'status' => 'rejected',
+            'correction_reason' => null,
+            'correction_requested_at' => null,
+        ]);
+        return response()->json([
+            'success' => true,
+            'message' => 'Shop rejected successfully',
+            'shop' => $shop
+        ]);
+    }
+
+    public function rejectedShops()
+    {
+        return response()->json(
+            Shop::latest()->where('status', 'rejected')->get()
+        );
+    }
+
+    // =========================
     // ADMIN REQUEST CORRECTION
     // =========================
     public function requestCorrection(Request $request, $id)
     {
-        if (
-            !$request->user()->hasAnyRole([
-                'admin',
-                'super_admin',
-            ])
-        ) {
-            return response()->json([
-                'message' => 'Unauthorized',
-            ], 403);
+        if (!$request->user()->hasAnyRole(['admin', 'super_admin'])) {
+            return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         $request->validate([
@@ -160,8 +180,6 @@ class ShopController extends Controller
         $shop->update([
             'correction_reason' => $request->reason,
             'correction_requested_at' => now(),
-            // status intentionally left as "pending" — the seller stays
-            // in the approval queue and can see the reason + resubmit
         ]);
 
         // =========================
@@ -241,9 +259,7 @@ class ShopController extends Controller
     }
 
     // =========================
-    // UPDATE SHOP (also used by the seller to resubmit after a
-    // correction request — CNIC images are optional here since the
-    // seller may only need to fix a text field, not re-upload)
+    // UPDATE SHOP
     // =========================
     public function update(Request $request, $id)
     {
@@ -276,8 +292,6 @@ class ShopController extends Controller
             'address' => $request->address,
             'description' => $request->description,
             'status' => 'pending',
-            // clear the correction note on resubmit — the old reason
-            // shouldn't keep showing once the seller has acted on it
             'correction_reason' => null,
             'correction_requested_at' => null,
         ];
@@ -361,50 +375,59 @@ class ShopController extends Controller
     }
 
     public function myShop(Request $request)
-   {
-       $shop = Shop::where('user_id', $request->user()->id)->first();
+    {
+        $shop = Shop::where('user_id', $request->user()->id)->first();
 
-      if (!$shop) {
-        return response()->json([
-            'message' => 'No shop found'
-        ], 404);
+        if (!$shop) {
+            return response()->json([
+                'message' => 'No shop found'
+            ], 404);
         }
 
-      return response()->json([
-        'shop' => $shop
+        return response()->json([
+            'shop' => $shop
         ]);
     }
 
     // =========================
-   // SELLER — UPDATE PAYOUT DETAILS
-   // =========================
+    // SELLER — UPDATE PAYOUT DETAILS
+    // =========================
     public function updatePayoutDetails(Request $request)
-   {
-      $shop = $request->user()->shop()->first();
+    {
+        $shop = $request->user()->shop()->first();
 
-     if (!$shop) {
-         return response()->json([
-             'success' => false,
-             'message' => 'No shop found for this account',
+        if (!$shop) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No shop found for this account',
             ], 404);
         }
 
-     $request->validate([
-         'payout_method' => 'required|in:easypaisa,jazzcash',
-         'payout_account_number' => 'required|string|max:255',
-         'payout_account_name' => 'required|string|max:255',
+        $request->validate([
+            'easypaisa_number' => 'nullable|string|max:255',
+            'easypaisa_account_name' => 'nullable|required_with:easypaisa_number|string|max:255',
+            'jazzcash_number' => 'nullable|string|max:255',
+            'jazzcash_account_name' => 'nullable|required_with:jazzcash_number|string|max:255',
         ]);
 
-     $shop->update([
-         'payout_method' => $request->payout_method,
-         'payout_account_number' => $request->payout_account_number,
-         'payout_account_name' => $request->payout_account_name,
+        if (!$request->easypaisa_number && !$request->jazzcash_number) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please add at least one payout account',
+            ], 422);
+        }
+
+        $shop->update([
+            'payout_easypaisa_number' => $request->easypaisa_number,
+            'payout_easypaisa_account_name' => $request->easypaisa_account_name,
+            'payout_jazzcash_number' => $request->jazzcash_number,
+            'payout_jazzcash_account_name' => $request->jazzcash_account_name,
         ]);
 
-      return response()->json([
-         'success' => true,
-         'message' => 'Payout details updated',
-         'shop' => $shop->fresh(),
+        return response()->json([
+            'success' => true,
+            'message' => 'Payout details updated',
+            'shop' => $shop->fresh(),
         ]);
     }
 }

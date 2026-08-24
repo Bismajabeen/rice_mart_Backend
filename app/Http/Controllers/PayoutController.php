@@ -81,4 +81,25 @@ class PayoutController extends Controller
             'payout' => $payout->fresh(),
         ]);
     }
+
+    // =========================
+    // SELLER — LIST THEIR OWN PAYOUTS
+   // =========================
+    public function sellerPayouts(Request $request)
+    {
+      $shop = $request->user()->shop()->first();
+
+      if (!$shop) {
+         return response()->json(['success' => false, 'message' => 'No shop found'], 404);
+        }
+
+      return response()->json([
+         'success' => true,
+         'payouts' => SellerPayout::with('order')
+            ->where('shop_id', $shop->id)
+            ->latest()
+            ->get(),
+        ]);
+
+    }
 }

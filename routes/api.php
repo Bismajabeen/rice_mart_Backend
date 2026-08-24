@@ -212,11 +212,23 @@ Route::middleware('auth:sanctum')->group(function () {
         'updateStatus'
     ])->middleware('permission:update order status');
 
+    //=========================
     // Seller Payout Details
+    //=========================
+
     Route::put('/my-shop/payout-details', [
        ShopController::class,
        'updatePayoutDetails'
     ])->middleware('permission:update own shop');
+
+    // =========================
+    // Seller See their payouts
+    // =========================
+
+    Route::get('/seller/payouts', [
+     PayoutController::class,
+     'sellerPayouts'
+    ])->middleware('permission:view shop orders');
 
     //
     // =========================================
@@ -349,6 +361,11 @@ Route::middleware('auth:sanctum')->group(function () {
         ShopController::class,
         'reject'
     ])->middleware('permission:reject shops');
+
+    Route::get('/rejected-shops', [
+       ShopController::class,
+       'rejectedShops'
+    ])->middleware('permission:view all shops');
 
     //
     // =========================================
