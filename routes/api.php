@@ -26,6 +26,8 @@ use App\Http\Controllers\Api\CityController;
 use App\Http\Controllers\Api\CourierChargeController;
 //admin settings controller
 use App\Http\Controllers\PaymentSettingController;
+use App\Http\Controllers\ComplaintController;
+use App\Http\Controllers\SettingController;
 
 //
 // =========================================
@@ -572,3 +574,18 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // AI Recommendation (no auth required — public endpoint)
 Route::post('/ai-recommendation', [AiRecommendationController::class, 'recommend']);
+
+//===============
+// COMPLAINTS
+//===============   
+Route::middleware('auth:sanctum')->group(function () {
+
+    Route::get('/settings/emergency-contact', [SettingController::class, 'emergencyContact']);
+
+    Route::post('/complaints', [ComplaintController::class, 'store']);
+    Route::get('/complaints/my', [ComplaintController::class, 'myComplaints']);
+    Route::get('/complaints', [ComplaintController::class, 'index']);
+    Route::get('/complaints/{complaint}', [ComplaintController::class, 'show']);
+    Route::post('/complaints/{complaint}/messages', [ComplaintController::class, 'addMessage']);
+    Route::patch('/complaints/{complaint}/status', [ComplaintController::class, 'updateStatus']);
+});
