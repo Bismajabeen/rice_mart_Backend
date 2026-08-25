@@ -11,8 +11,9 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RiceCategorySeeder::class,
             RoleSeeder::class,
-            RolePermissionSeeder::class,  // must run before UserSeeder
-            UserSeeder::class,            // replaces SuperAdminUserSeeder
+            RolePermissionSeeder::class, 
+            UserSeeder::class,
+            SettingsSeeder::class,        
         ]);
     }
 }

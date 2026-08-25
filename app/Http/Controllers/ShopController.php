@@ -212,8 +212,12 @@ class ShopController extends Controller
             'shop_name' => 'required',
             'owner_name' => 'required',
             'phone' => 'required',
+            'city' => 'required|string|max:100',
             'address' => 'required',
             'cnic' => 'required',
+            'description' => 'nullable|string',
+            'cnic_image' => 'required|image|max:2048',
+            'cnic_back_image' => 'required|image|max:2048',
         ]);
 
         return DB::transaction(function () use ($request) {
@@ -222,18 +226,25 @@ class ShopController extends Controller
                 'name' => $request->name,
                 'email' => $request->email,
                 'password' => $request->password,
+                'is_verified' => true,
+                'email_verified_at' => now(),
             ]);
 
             $user->syncRoles(['seller']);
+
+            $cnicImagePath = $request->file('cnic_image')->store('shops/cnic', 'public');
+            $cnicBackImagePath = $request->file('cnic_back_image')->store('shops/cnic', 'public');
 
             $shop = Shop::create([
                 'user_id' => $user->id,
                 'shop_name' => $request->shop_name,
                 'owner_name' => $request->owner_name,
                 'phone' => $request->phone,
+                'city' => $request->city,
                 'address' => $request->address,
                 'cnic' => $request->cnic,
-                'cnic_image' => null,
+                'cnic_image' => $cnicImagePath,
+                'cnic_back_image' => $cnicBackImagePath,
                 'description' => $request->description,
                 'is_approved' => 1,
                 'status' => 'approved',
