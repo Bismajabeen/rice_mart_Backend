@@ -1,282 +1,194 @@
-import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:get_storage/get_storage.dart';
+<?php
 
-import '../../core/services/notification_service.dart';
-import '../../core/services/order_service.dart';
-import '../../core/utils/themes.dart';
-import '../../routes/app_routes.dart';
+namespace App\Http\Controllers;
 
-// Role-specific order detail screens — each expects a different shape,
-// so we can't just push one generic screen with an order_id.
-import '../buyer/orders/order_details_screen.dart';
-import '../seller/order/seller_order_details_screen.dart';
-import '../admin_screens/orders/admin_order_details_screen.dart';
+use App\Models\Complaint;
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use App\Services\NotificationService;
 
-class NotificationsScreen extends StatefulWidget {
-  const NotificationsScreen({super.key});
+class ComplaintController extends Controller
+{
+    // POST /api/complaints — customer or seller creates a complaint
+    public function store(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $role = $this->resolveComplainantRole($user);
 
-  @override
-  State<NotificationsScreen> createState() => _NotificationsScreenState();
-}
+        $validated = $request->validate([
+            'category'   => 'required|in:payment,order,account,other',
+            'subject'    => 'required|string|max:255',
+            'message'    => 'required|string',
+            'attachment' => 'nullable|image|max:5120',
+        ]);
 
-class _NotificationsScreenState extends State<NotificationsScreen> {
-  final _service = NotificationService();
-  final _orderService = OrderService();
-  final _box = GetStorage();
+        $complaint = Complaint::create([
+            'user_id'  => $user->id,
+            'role'     => $role,
+            'category' => $validated['category'],
+            'subject'  => $validated['subject'],
+            'status'   => 'open',
+        ]);
 
-  List<Map<String, dynamic>> notifications = [];
-  bool isLoading = true;
-  bool isNavigating = false; // prevents double-taps while we fetch
+        $attachmentPath = $request->hasFile('attachment')
+            ? $request->file('attachment')->store('complaints', 'public')
+            : null;
 
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+        $complaint->messages()->create([
+            'sender_id'       => $user->id,
+            'sender_role'     => 'complainant',
+            'message'         => $validated['message'],
+            'attachment_path' => $attachmentPath,
+        ]);
 
-  Future<void> _load() async {
-    setState(() => isLoading = true);
-    final data = await _service.fetchNotifications();
-    setState(() {
-      notifications = data;
-      isLoading = false;
-    });
-  }
-
-  Future<void> _markAllRead() async {
-    final ok = await _service.markAllAsRead();
-    if (ok) {
-      setState(() {
-        for (var n in notifications) {
-          n['is_read'] = true;
-        }
-      });
-    }
-  }
-
-  // =========================
-  // ROLE HELPER
-  // (matches the "role" key already stored at login — same source
-  // PermissionService/dashboards read from)
-  // =========================
-  String get _role => (_box.read('role') ?? '').toString().toLowerCase();
-
-  bool get _isAdmin => _role == 'admin' || _role == 'super_admin';
-  bool get _isSeller => _role == 'seller';
-
-  // =========================
-  // MAIN TAP HANDLER
-  // =========================
-  Future<void> _onTapNotification(Map<String, dynamic> n) async {
-    if (n['is_read'] != true) {
-      final ok = await _service.markAsRead(n['id']);
-      if (ok && mounted) setState(() => n['is_read'] = true);
-    }
-
-    final type = n['type']?.toString() ?? '';
-    final data = Map<String, dynamic>.from(n['data'] ?? {});
-
-    switch (type) {
-      case 'chat_message':
-        _openChat(data);
-        break;
-
-      case 'order_placed':
-      case 'order_status':
-      case 'payment_status':
-      case 'payment_release':
-        await _openOrder(data);
-        break;
-
-      case 'shop_pending':
-        // Only admins get this type — send them to the approvals queue
-        Get.toNamed(AppRoutes.sellerApprovals);
-        break;
-
-      case 'shop_status':
-        // Only sellers get this type — send them to their own shop
-        Get.toNamed(AppRoutes.myShop);
-        break;
-
-      default:
-        // Unknown/future type — do nothing beyond marking as read
-        break;
-    }
-  }
-
-  // =========================
-  // CHAT — conversation_id is enough, ChatScreen falls back to
-  // "Chat" as the title if other_name isn't supplied.
-  // =========================
-  void _openChat(Map<String, dynamic> data) {
-    final conversationId = data['conversation_id'];
-    if (conversationId == null) return;
-
-    Get.toNamed(AppRoutes.chat, arguments: {"conversation_id": conversationId});
-  }
-
-  // =========================
-  // ORDER — fetch the right list for the current role, find the
-  // matching record, then push the role-specific detail screen.
-  //
-  // NOTE: firstWhereOrNull below is an EXTENSION METHOD (defined at the
-  // bottom of this file) — it's called directly on the list itself,
-  // e.g. `myList.firstWhereOrNull(test)`, never as `SomeName(myList)...`.
-  // =========================
-  Future<void> _openOrder(Map<String, dynamic> data) async {
-    final orderId = data['order_id'];
-    if (orderId == null || isNavigating) return;
-
-    setState(() => isNavigating = true);
-
-    try {
-      if (_isAdmin) {
-        final active = await _orderService.getAdminOrders();
-        final history = await _orderService.getAdminOrderHistory();
-        final all = [...active, ...history];
-
-        final found = all.firstWhereOrNull((o) => o['id'] == orderId);
-
-        if (found != null) {
-          await Get.to(
-            () => AdminOrderDetailsScreen(
-              order: found,
-              isHistory: history.any((o) => o['id'] == orderId),
-            ),
-          );
-        } else {
-          Get.snackbar("Not found", "This order could not be loaded.");
-        }
-      } else if (_isSeller) {
-        final items = await _orderService.fetchSellerOrders();
-
-        // Notification stores order_id, but the seller screen needs an
-        // order ITEM — pick the first item belonging to that order.
-        final found = items.firstWhereOrNull(
-          (i) => i['order']?['id'] == orderId,
+        // =========================
+        // NOTIFY ADMINS — new complaint filed
+        // recipient_role: 'admin' tells the client which detail screen
+        // to open, independent of how the client stores its own role.
+        // =========================
+        NotificationService::sendToAdmins(
+            'complaint',
+            'New complaint filed',
+            $user->name . ' filed a complaint: ' . $validated['subject'],
+            ['complaint_id' => $complaint->id, 'recipient_role' => 'admin']
         );
 
-        if (found != null) {
-          await Get.to(() => SellerOrderDetailScreen(item: found));
-        } else {
-          Get.snackbar("Not found", "This order could not be loaded.");
-        }
-      } else {
-        // Buyer
-        final active = await _orderService.getActiveOrders();
-        final history = await _orderService.getOrderHistory();
-        final all = [...active, ...history];
-
-        final found = all.firstWhereOrNull((o) => o['id'] == orderId);
-
-        if (found != null) {
-          await Get.toNamed(AppRoutes.orderDetails, arguments: found);
-        } else {
-          Get.snackbar("Not found", "This order could not be loaded.");
-        }
-      }
-    } finally {
-      if (mounted) setState(() => isNavigating = false);
+        return response()->json($complaint->load('messages'), 201);
     }
-  }
 
-  String _timeAgo(String? iso) {
-    if (iso == null) return '';
-    final date = DateTime.tryParse(iso);
-    if (date == null) return '';
-    final diff = DateTime.now().difference(date);
-    if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
-  }
+    // GET /api/complaints/my — customer/seller's own complaints
+    public function myComplaints(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $this->resolveComplainantRole($user); // just to enforce permission check
 
-  IconData _iconForType(String? type) {
-    switch (type) {
-      case 'order_placed':
-      case 'order_status':
-        return Icons.shopping_bag_rounded;
-      case 'payment_status':
-      case 'payment_release':
-        return Icons.payments_rounded;
-      case 'shop_status':
-      case 'shop_pending':
-        return Icons.storefront_rounded;
-      case 'chat_message':
-        return Icons.chat_bubble_rounded;
-      case 'review':
-        return Icons.star_rounded;
-      case 'low_stock':
-        return Icons.inventory_2_rounded;
-      default:
-        return Icons.notifications_rounded;
+        $complaints = Complaint::where('user_id', $user->id)->latest()->get();
+
+        return response()->json($complaints);
     }
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Notifications"),
-        actions: [
-          TextButton(
-            onPressed: _markAllRead,
-            child: const Text(
-              "Mark all read",
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : notifications.isEmpty
-          ? const Center(child: Text("No notifications yet"))
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView.separated(
-                itemCount: notifications.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final n = notifications[index];
-                  final isRead = n['is_read'] == true;
+    // GET /api/complaints — Super Admin only (full access = whole system)
+    public function index(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->can('full access'), 403, 'Forbidden');
 
-                  return ListTile(
-                    onTap: () => _onTapNotification(n),
-                    tileColor: isRead
-                        ? null
-                        : AppColors.darkGreen.withOpacity(0.06),
-                    leading: CircleAvatar(
-                      backgroundColor: isRead
-                          ? Colors.grey.withOpacity(0.2)
-                          : AppColors.darkGreen.withOpacity(0.15),
-                      child: Icon(
-                        _iconForType(n['type']),
-                        color: isRead ? Colors.grey : AppColors.darkGreen,
-                        size: 20,
-                      ),
-                    ),
-                    title: Text(
-                      n['title'] ?? '',
-                      style: TextStyle(
-                        fontWeight: isRead
-                            ? FontWeight.normal
-                            : FontWeight.bold,
-                      ),
-                    ),
-                    subtitle: Text(n['body'] ?? ''),
-                    trailing: Text(
-                      _timeAgo(n['created_at']),
-                      style: const TextStyle(fontSize: 11, color: Colors.grey),
-                    ),
-                  );
-                },
-              ),
-            ),
-    );
-  }
+        $query = Complaint::with('user:id,name,email')->latest();
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->query('status'));
+        }
+
+        return response()->json($query->get());
+    }
+
+    // GET /api/complaints/{id} — owner, or Super Admin
+    public function show(Request $request, Complaint $complaint): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($complaint->user_id !== $user->id && !$user->can('full access')) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        return response()->json($complaint->load('user:id,name,email', 'messages.sender:id,name'));
+    }
+
+    // POST /api/complaints/{id}/messages — owner replies, or Super Admin replies
+    public function addMessage(Request $request, Complaint $complaint): JsonResponse
+    {
+        $user = $request->user();
+        $isOwner = $complaint->user_id === $user->id;
+        $isSuperAdmin = $user->can('full access');
+
+        if (!$isOwner && !$isSuperAdmin) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $validated = $request->validate([
+            'message'    => 'required|string',
+            'attachment' => 'nullable|image|max:5120',
+        ]);
+
+        $attachmentPath = $request->hasFile('attachment')
+            ? $request->file('attachment')->store('complaints', 'public')
+            : null;
+
+        $message = $complaint->messages()->create([
+            'sender_id'       => $user->id,
+            'sender_role'     => $isSuperAdmin ? 'super_admin' : 'complainant',
+            'message'         => $validated['message'],
+            'attachment_path' => $attachmentPath,
+        ]);
+
+        if ($isSuperAdmin && $complaint->status === 'open') {
+            $complaint->update(['status' => 'in_progress']);
+        }
+
+        // =========================
+        // NOTIFY THE OTHER SIDE
+        // Complainant replied -> notify admins (recipient_role: 'admin').
+        // Admin replied -> notify the complaint owner (recipient_role:
+        // the owner's own role — 'customer' or 'seller' — taken from
+        // $complaint->role, so it's never guessed on the client).
+        // =========================
+        if ($isSuperAdmin) {
+            NotificationService::send(
+                $complaint->user,
+                'complaint',
+                'Reply to your complaint',
+                'Admin replied to your complaint: ' . $complaint->subject,
+                ['complaint_id' => $complaint->id, 'recipient_role' => $complaint->role]
+            );
+        } else {
+            NotificationService::sendToAdmins(
+                'complaint',
+                'New reply on complaint',
+                $user->name . ' replied on complaint: ' . $complaint->subject,
+                ['complaint_id' => $complaint->id, 'recipient_role' => 'admin']
+            );
+        }
+
+        return response()->json($message, 201);
+    }
+
+    // PATCH /api/complaints/{id}/status — Super Admin only
+    public function updateStatus(Request $request, Complaint $complaint): JsonResponse
+    {
+        abort_unless($request->user()->can('full access'), 403, 'Forbidden');
+
+        $validated = $request->validate([
+            'status' => 'required|in:open,in_progress,resolved',
+        ]);
+
+        $complaint->update(['status' => $validated['status']]);
+
+        // =========================
+        // NOTIFY COMPLAINT OWNER — status changed (e.g. resolved)
+        // recipient_role taken from $complaint->role (the owner's role),
+        // not from any client-side guess.
+        // =========================
+        NotificationService::send(
+            $complaint->user,
+            'complaint',
+            'Complaint status updated',
+            'Your complaint "' . $complaint->subject . '" is now ' . $validated['status'] . '.',
+            ['complaint_id' => $complaint->id, 'recipient_role' => $complaint->role]
+        );
+
+        return response()->json($complaint);
+    }
+
+    // Only 'view customer dashboard' or 'view seller dashboard' can file/own a complaint
+    private function resolveComplainantRole($user): string
+    {
+        if ($user->can('view seller dashboard')) {
+            return 'seller';
+        }
+
+        if ($user->can('view customer dashboard')) {
+            return 'customer';
+        }
+
+        abort(403, 'Forbidden');
+    }
 }
-
-// firstWhereOrNull is already provided by package:get (GetX), imported
-// at the top of this file — no need to define it here.

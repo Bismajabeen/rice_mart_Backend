@@ -63,10 +63,14 @@ class UserController extends Controller
             ], 403);
         }
 
+        // Admin-created users skip the OTP email-verification flow entirely —
+        // they are trusted/created directly by an admin, so mark them
+        // as verified right away instead of sending an OTP email.
         $user = User::create([
-            'name'     => $request->name,
-            'email'    => $request->email,
-            'password' => Hash::make($request->password),
+            'name'        => $request->name,
+            'email'       => $request->email,
+            'password'    => Hash::make($request->password),
+            'is_verified' => true,
         ]);
 
         $user->assignRole($request->role);

@@ -21,6 +21,13 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
         ]);
 
+        // API-only app — no web 'login' route exists, so never let the
+        // auth middleware attempt to redirect a guest there. Without this,
+        // Laravel's default guest-redirect behavior tries to resolve
+        // route('login') and throws RouteNotFoundException instead of a
+        // clean 401 Unauthenticated response.
+        $middleware->redirectGuestsTo(fn () => null);
+
     })
 
     ->withExceptions(function (Exceptions $exceptions): void {
