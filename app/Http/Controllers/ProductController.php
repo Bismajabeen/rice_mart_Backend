@@ -27,6 +27,7 @@ class ProductController extends Controller
         $shop = Shop::where('id', $request->shop_id)
             ->where('user_id', auth()->id())
             ->where('is_approved', 1)
+            ->where('status', 'approved')
             ->first();
 
         if (!$shop) {
@@ -76,6 +77,11 @@ class ProductController extends Controller
     {
         $products = Product::with(['shop', 'riceCategory'])
             ->where('shop_id', $shopId)
+            ->where('is_active', true)
+            ->whereHas('shop', function ($query) {
+                $query->where('is_approved', 1)
+                    ->where('status', 'approved');
+            })
             ->latest()
             ->get();
 
@@ -88,8 +94,10 @@ class ProductController extends Controller
     public function allProducts()
     {
         return Product::with(['shop', 'riceCategory'])
+        ->where('is_active', true)
         ->whereHas('shop', function ($query) {
-            $query->where('is_approved', 1);
+            $query->where('is_approved', 1)
+                ->where('status', 'approved');
             })
             ->latest()
             ->get();
@@ -109,7 +117,9 @@ class ProductController extends Controller
         // ✅ Ownership check through shop
         $product = Product::where('id', $id)
          ->whereHas('shop', function ($query) {
-            $query->where('user_id', auth()->id());
+             $query->where('user_id', auth()->id());
+             $query->where('is_approved', 1);
+             $query->where('status', 'approved');
             })
             ->first();
 

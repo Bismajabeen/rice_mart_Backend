@@ -33,23 +33,33 @@ class Shop extends Model
         'payout_jazzcash_account_name',
     ];
 
+    // relation with rice categories
     public function riceCategories()
     {
         return $this->hasMany(RiceCategory::class);
     }
 
+    // relation with user
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
+    // relation with order items
     public function orderItems()
     {
         return $this->hasMany(OrderItem::class);
     }
 
+    // relation with seller payouts
     public function payouts()
     {
         return $this->hasMany(SellerPayout::class);
+    }
+
+    // relation with seller removals
+    public function removalRecord()
+    {
+      return $this->hasOne(SellerRemoval::class);
     }
 }
