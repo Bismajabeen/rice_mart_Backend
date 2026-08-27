@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use App\Models\Shop;
 use App\Models\RiceCategory;
 use Illuminate\Support\Facades\DB;
+use App\Mail\DeleteShopOtpMail;
+use Illuminate\Support\Facades\Mail;
 
 class ShopController extends Controller
 {
@@ -335,9 +337,9 @@ class ShopController extends Controller
     }
 
     // =========================
-    // DELETE SHOP
+    // SELLER — REQUEST SHOP DELETION (SEND OTP)
     // =========================
-    public function deleteShop(Request $request, $id)
+    public function requestShopDeletion(Request $request, $id)
     {
         $shop = Shop::findOrFail($id);
 
@@ -350,17 +352,63 @@ class ShopController extends Controller
         }
 
         $user = $shop->user;
+        $otp = random_int(100000, 999999);
 
-        $shop->delete();
+        $user->update([
+            'otp' => $otp,
+            'otp_expires_at' => now()->addMinutes(10),
+        ]); 
 
-        if ($user) {
-            $user->syncRoles(['customer']);
-        }
+        Mail::to($user->email)->send(
+            new DeleteShopOtpMail($otp, $user->name, $shop->shop_name)
+        );
 
         return response()->json([
             'success' => true,
-            'message' => 'Shop deleted'
+            'message' => 'A verification OTP has been sent to your email.',
         ]);
+    }
+
+    // =========================
+    //  SELLER — CONFIRM SHOP DELETION (VERIFY OTP + DELETE)
+    //==========================
+        public function confirmShopDeletion(Request $request, $id)
+    {
+        $request->validate([
+            'otp' => 'required',   
+        ]);
+        $shop = Shop::findOrFail($id);
+        if (
+            $shop->user_id != $request->user()->id &&
+            !$request->user()->hasRole('admin') &&
+            !$request->user()->hasRole('super_admin')
+        ) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $user = $request->user();
+
+        if ($user->otp != $request->otp) {
+            return response()->json(['message' => 'Invalid OTP.'], 422);
+        }
+
+        if (now()->greaterThan($user->otp_expires_at)) {
+            return response()->json(['OTP expired. Please request a new one.'], 422);
+        }
+        // Consume the OTP so it can't be reused for anything else
+        $user->update([
+            'otp' => null,
+            'otp_expires_at' => null,
+        ]);
+
+        $shop->delete(); 
+        $user->syncRoles(['customer']);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Shop deleted successfully.',
+        ]);
+
     }
 
     // =========================
