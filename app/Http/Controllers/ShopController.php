@@ -312,6 +312,7 @@ class ShopController extends Controller
             'description' => $request->description,
             'cnic' => $request->cnic,
             'status' => 'pending',
+            'is_approved' => 0, 
             'correction_reason' => null,
             'correction_requested_at' => null,
             'rejection_reason' => null,
