@@ -368,6 +368,13 @@ Route::middleware('auth:sanctum')->group(function () {
        'rejectedShops'
     ])->middleware('permission:view all shops');
 
+
+    // request correction route for shops
+    Route::post('/shops/{id}/request-correction', [
+        ShopController::class,
+        'requestCorrection'
+    ]);
+
     //
     // =========================================
     // ADMIN ORDERS
