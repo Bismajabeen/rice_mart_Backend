@@ -7,7 +7,8 @@ use Illuminate\Http\Request;
 use App\Models\Shop;
 use App\Models\RiceCategory;
 use Illuminate\Support\Facades\DB;
-use App\Services\NotificationService;
+use App\Mail\DeleteShopOtpMail;
+use Illuminate\Support\Facades\Mail;
 
 class ShopController extends Controller
 {
@@ -29,17 +30,54 @@ class ShopController extends Controller
             'cnic_back_image' => 'required|image|max:2048',
         ]);
 
-        if (Shop::where('user_id', $request->user()->id)
+        $existingShop = Shop::where('user_id', $request->user()->id)
             ->where('status', '!=', 'removed')
-            ->exists()) {
+            ->first();
+
+        // Only an in-progress or active shop should actually block a new application.
+        if ($existingShop && in_array($existingShop->status, ['pending', 'approved'])) {
             return response()->json([
-                'message' => 'You already have a shop'
+                'success' => false,
+                'message' => 'You already have a shop in progress or active. Please update your existing shop instead.',
             ], 400);
         }
 
         $cnicImagePath = $request->file('cnic_image')->store('shops/cnic', 'public');
         $cnicBackImagePath = $request->file('cnic_back_image')->store('shops/cnic', 'public');
 
+        // A rejected shop reapplying -> reuse the same row instead of creating a duplicate.
+        if ($existingShop && $existingShop->status === 'rejected') {
+            if ($existingShop->cnic_image && \Illuminate\Support\Facades\Storage::disk('public')->exists($existingShop->cnic_image)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($existingShop->cnic_image);
+            }
+            if ($existingShop->cnic_back_image && \Illuminate\Support\Facades\Storage::disk('public')->exists($existingShop->cnic_back_image)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($existingShop->cnic_back_image);
+            }
+
+        $existingShop->update([
+                'cnic' => $request->cnic,
+                'cnic_image' => $cnicImagePath,
+                'cnic_back_image' => $cnicBackImagePath,
+                'shop_name' => $request->shop_name,
+                'owner_name' => $request->owner_name,
+                'phone' => $request->phone,
+                'city' => $request->city,
+                'address' => $request->address,
+                'description' => $request->description ?? null,
+                'status' => 'pending',
+                'is_approved' => 0,
+                'correction_reason' => null,
+                'correction_requested_at' => null,
+                'rejection_reason' => null,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'shop' => $existingShop->fresh()
+            ]);
+        }
+
+        // Brand-new applicant, or a reactivated (previously removed) account.
         $shop = Shop::create([
             'user_id' => $request->user()->id,
             'cnic' => $request->cnic,
@@ -109,6 +147,7 @@ class ShopController extends Controller
             'status' => 'approved',
             'correction_reason' => null,
             'correction_requested_at' => null,
+            'rejection_reason' => null,
         ]);
 
         $user = $shop->user;
@@ -135,14 +174,19 @@ class ShopController extends Controller
     }
 
     // =========================
-    // REJECT SHOP  
+    // REJECT SHOP
     // =========================
-    public function reject($id)
+    public function reject(Request $request, $id)
     {
-        $shop = Shop::findOrFail($id);  
+        $request->validate([
+            'reason' => 'required|string|max:1000',
+        ]);
+
+        $shop = Shop::findOrFail($id);
         $shop->update([
             'is_approved' => 0,
             'status' => 'rejected',
+            'rejection_reason' => $request->reason,
             'correction_reason' => null,
             'correction_requested_at' => null,
         ]);
@@ -183,8 +227,11 @@ class ShopController extends Controller
         }
 
         $shop->update([
+            'status' => 'pending',
+            'is_approved' => 0,
             'correction_reason' => $request->reason,
             'correction_requested_at' => now(),
+            'rejection_reason' => null,
         ]);
 
         // =========================
@@ -296,6 +343,7 @@ class ShopController extends Controller
             'city' => 'required|string|max:100',
             'address' => 'required|string',
             'description' => 'nullable|string',
+            'cnic' => 'required|string|max:20',
             'cnic_image' => 'nullable|image|max:2048',
             'cnic_back_image' => 'nullable|image|max:2048',
         ]);
@@ -307,9 +355,12 @@ class ShopController extends Controller
             'city' => $request->city,
             'address' => $request->address,
             'description' => $request->description,
+            'cnic' => $request->cnic,
             'status' => 'pending',
+            'is_approved' => 0,
             'correction_reason' => null,
             'correction_requested_at' => null,
+            'rejection_reason' => null,
         ];
 
         if ($request->hasFile('cnic_image')) {
@@ -339,9 +390,9 @@ class ShopController extends Controller
     }
 
     // =========================
-    // DELETE SHOP
+    // SELLER — REQUEST SHOP DELETION (SEND OTP)
     // =========================
-    public function deleteShop(Request $request, $id)
+    public function requestShopDeletion(Request $request, $id)
     {
         $shop = Shop::findOrFail($id);
 
@@ -354,17 +405,63 @@ class ShopController extends Controller
         }
 
         $user = $shop->user;
+        $otp = random_int(100000, 999999);
 
-        $shop->delete();
+        $user->update([
+            'otp' => $otp,
+            'otp_expires_at' => now()->addMinutes(10),
+        ]);
 
-        if ($user) {
-            $user->syncRoles(['customer']);
-        }
+        Mail::to($user->email)->send(
+            new DeleteShopOtpMail($otp, $user->name, $shop->shop_name)
+        );
 
         return response()->json([
             'success' => true,
-            'message' => 'Shop deleted'
+            'message' => 'A verification OTP has been sent to your email.',
         ]);
+    }
+
+    // =========================
+    //  SELLER — CONFIRM SHOP DELETION (VERIFY OTP + DELETE)
+    //==========================
+        public function confirmShopDeletion(Request $request, $id)
+    {
+        $request->validate([
+            'otp' => 'required',
+        ]);
+        $shop = Shop::findOrFail($id);
+        if (
+            $shop->user_id != $request->user()->id &&
+            !$request->user()->hasRole('admin') &&
+            !$request->user()->hasRole('super_admin')
+        ) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $user = $request->user();
+
+        if ($user->otp != $request->otp) {
+            return response()->json(['message' => 'Invalid OTP.'], 422);
+        }
+
+        if (now()->greaterThan($user->otp_expires_at)) {
+            return response()->json(['OTP expired. Please request a new one.'], 422);
+        }
+        // Consume the OTP so it can't be reused for anything else
+        $user->update([
+            'otp' => null,
+            'otp_expires_at' => null,
+        ]);
+
+        $shop->delete();
+        $user->syncRoles(['customer']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Shop deleted successfully.',
+        ]);
+
     }
 
     // =========================
@@ -393,7 +490,7 @@ class ShopController extends Controller
     public function myShop(Request $request)
     {
         $shop = Shop::where('user_id', $request->user()->id)
-        ->where('status', '!=', 'removed')
+        ->whereNotIn('status', ['removed', 'rejected'])
         ->first();
 
         if (!$shop) {
@@ -412,7 +509,7 @@ class ShopController extends Controller
     // =========================
     public function updatePayoutDetails(Request $request)
     {
-        $shop = $request->user()->shop()->where('status', '!=', 'removed')->first();
+        $shop = $request->user()->shop()->whereNotIn('status', ['removed', 'rejected'])->first();
 
         if (!$shop) {
             return response()->json([

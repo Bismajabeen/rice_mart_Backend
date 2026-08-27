@@ -259,7 +259,7 @@ public function resetPassword(Request $request)
 
         $user->tokens()->delete();
         $token = $user->createToken('auth_token')->plainTextToken;
-        $shop = $user->shop()->where('status', '!=', 'removed')->first();
+        $shop = $user->shop()->whereNotIn('status', ['removed', 'rejected'])->first();
 
         return response()->json([
             'message' => 'Login successful',
@@ -280,7 +280,7 @@ public function resetPassword(Request $request)
     public function me(Request $request)
     {
         $user = $request->user();
-        $shop = $user->shop()->where('status', '!=', 'removed')->first();
+        $shop = $user->shop()->whereNotIn('status', ['removed', 'rejected'])->first();
 
         return response()->json([
             'user' => $user,

@@ -20,7 +20,7 @@ class ProductController extends Controller
             'name' => 'required|string',
             'price' => 'required|numeric',
             'stock' => 'required|numeric',
-            'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
+            'image' => 'required|image|mimes:jpg,jpeg,png,webp|max:4096',
         ]);
 
         // ✅ Ownership check (shop must belong to seller)
@@ -48,7 +48,7 @@ class ProductController extends Controller
         }
 
         // ✅ Handle image upload (stored on disk, path saved in DB)
-        $imagePath = null;
+
         if ($request->hasFile('image')) {
             $imagePath = $request->file('image')->store('products', 'public');
         }

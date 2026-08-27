@@ -26,6 +26,7 @@ class Shop extends Model
 
         'correction_reason',
         'correction_requested_at',
+        'rejection_reason',
 
         'payout_easypaisa_number',
         'payout_easypaisa_account_name',

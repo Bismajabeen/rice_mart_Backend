@@ -173,9 +173,14 @@ Route::middleware('auth:sanctum')->group(function () {
         'update'
     ])->middleware('permission:update own shop');
 
-    Route::delete('/shops/{id}/delete', [
+    Route::post('/shops/{id}/delete/request', [
         ShopController::class,
-        'deleteShop'
+        'requestShopDeletion'
+    ])->middleware('permission:delete own shop');
+
+    Route::post('/shops/{id}/delete/confirm', [
+        ShopController::class,
+        'confirmShopDeletion'
     ])->middleware('permission:delete own shop');
 
     //
@@ -369,6 +374,13 @@ Route::middleware('auth:sanctum')->group(function () {
        ShopController::class,
        'rejectedShops'
     ])->middleware('permission:view all shops');
+
+
+    // request correction route for shops
+    Route::post('/shops/{id}/request-correction', [
+        ShopController::class,
+        'requestCorrection'
+    ]);
 
     //
     // =========================================
