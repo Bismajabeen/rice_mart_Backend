@@ -29,6 +29,7 @@ use App\Http\Controllers\PaymentSettingController;
 use App\Http\Controllers\ComplaintController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\SellerRemovalController;
+use App\Http\Controllers\StripeController;
 
  // outside auth:sanctum — Stripe calls this directly
 //
@@ -596,3 +597,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/complaints/{complaint}/messages', [ComplaintController::class, 'addMessage']);
     Route::patch('/complaints/{complaint}/status', [ComplaintController::class, 'updateStatus']);
 });
+// =========================================
+// STRIPE (CARD PAYMENTS)
+// =========================================
+Route::middleware('auth:sanctum')->post('/stripe/create-intent', [StripeController::class, 'createPaymentIntent']);
+Route::post('/stripe/webhook', [StripeController::class, 'webhook']); // outside auth:sanctum — Stripe calls this directly
