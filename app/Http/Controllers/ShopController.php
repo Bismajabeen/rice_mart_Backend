@@ -29,7 +29,9 @@ class ShopController extends Controller
             'cnic_back_image' => 'required|image|max:2048',
         ]);
 
-        if (Shop::where('user_id', $request->user()->id)->exists()) {
+        if (Shop::where('user_id', $request->user()->id)
+            ->where('status', '!=', 'removed')
+            ->exists()) {
             return response()->json([
                 'message' => 'You already have a shop'
             ], 400);
@@ -88,7 +90,10 @@ class ShopController extends Controller
     public function approvedShops()
     {
         return response()->json(
-            Shop::latest()->where('is_approved', 1)->get()
+            Shop::latest()
+             ->where('is_approved', 1)
+             ->where('status', 'approved')
+             ->get()
         );
     }
 
@@ -387,7 +392,9 @@ class ShopController extends Controller
 
     public function myShop(Request $request)
     {
-        $shop = Shop::where('user_id', $request->user()->id)->first();
+        $shop = Shop::where('user_id', $request->user()->id)
+        ->where('status', '!=', 'removed')
+        ->first();
 
         if (!$shop) {
             return response()->json([
@@ -405,7 +412,7 @@ class ShopController extends Controller
     // =========================
     public function updatePayoutDetails(Request $request)
     {
-        $shop = $request->user()->shop()->first();
+        $shop = $request->user()->shop()->where('status', '!=', 'removed')->first();
 
         if (!$shop) {
             return response()->json([

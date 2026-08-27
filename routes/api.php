@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\CourierChargeController;
 use App\Http\Controllers\PaymentSettingController;
 use App\Http\Controllers\ComplaintController;
 use App\Http\Controllers\SettingController;
+use App\Http\Controllers\SellerRemovalController;
 
  // outside auth:sanctum — Stripe calls this directly
 //
@@ -393,6 +394,20 @@ Route::middleware('auth:sanctum')->group(function () {
         OrderController::class,
         'updateStatus'
     ])->middleware('permission:update any order status');
+
+    // =========================================
+    // ADMIN SELLER REMOVAL
+    // =========================================
+
+    Route::post('/admin/shops/{id}/remove-seller', [
+        SellerRemovalController::class,
+        'remove'
+    ])->middleware('permission:remove sellers');
+
+    Route::get('/removed-shops', [
+        SellerRemovalController::class,
+        'removedShops'
+    ])->middleware('permission:view all shops');
 });
 
 //

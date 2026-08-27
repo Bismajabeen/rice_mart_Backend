@@ -29,6 +29,9 @@ class User extends Authenticatable
     'otp',
     'otp_expires_at',
     'is_verified',
+    'account_status',
+    'removed_reason',
+    'removed_at',
 ];
 
 
@@ -53,13 +56,20 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'removed_at' => 'datetime',
         ];
     }
-      // shop relation
+    // shop relation
     public function shop()
-{
-    return $this->hasOne(Shop::class);
-}
+    {
+       return $this->hasOne(Shop::class);
+    }
+    
+    // relation with seller removals
+    public function isRemoved(): bool
+    {
+        return $this->account_status === 'removed';
+    }
 }
 
 

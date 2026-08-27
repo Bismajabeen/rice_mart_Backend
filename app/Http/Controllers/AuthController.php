@@ -8,6 +8,7 @@ use App\Mail\OtpMail;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\ResetPasswordOtpMail;
+use App\Models\BannedEmail;
 
 class AuthController extends Controller
 {
@@ -16,78 +17,80 @@ class AuthController extends Controller
     // =========================
     public function register(Request $request)
     {
-        $request->validate(
-            [
-                'name' => 'required|string|max:255',
-                // 'email' rule catches missing "@" / bad format.
-                // 'dns' checks that the domain actually has valid MX/A records,
-                // so fake domains like abc@gmial.com get rejected here too.
-               'email' => 'required|email:rfc,dns',
-                'password' => 'required|min:6',
-            ],
-            [
-                'email.required' => 'Email is required.',
-                'email.email' => 'Email format is not correct.',
-                'email.dns' => 'This email does not seem to exist. Please enter a valid email.',
-            ]
-        );
+       $request->validate([
+         'name' => 'required|string|max:255',
+         'email' => 'required|email',
+         'password' => 'required|min:6',
+        ]);
+
+        // Check if the email is permanently banned
+      if (BannedEmail::where('email', $request->email)->exists()) {
+        return response()->json([
+            'message' => 'This email is not permitted to register on Rice Mart.',
+        ], 403);
+        }
 
         $existingUser = User::where('email', $request->email)->first();
 
-        // Already registered AND verified -> block
-        if ($existingUser && $existingUser->is_verified) {
-            return response()->json([
-                'message' => 'Email is already in use',
-            ], 422);
-        }
-
-        $otp = random_int(100000, 999999);
-        $otpExpiry = now()->addMinutes(10);
-
-        if ($existingUser && !$existingUser->is_verified) {
-            // exists but never verified -> update details + resend otp
-            $existingUser->update([
-                'name' => $request->name,
-                'password' => Hash::make($request->password),
-                'otp' => $otp,
-                'otp_expires_at' => $otpExpiry,
-            ]);
-            $user = $existingUser;
-        } else {
-            $user = User::create([
-                'name' => $request->name,
-                'email' => $request->email,
-                'password' => Hash::make($request->password),
-                'otp' => $otp,
-                'otp_expires_at' => $otpExpiry,
-                'is_verified' => false,
-            ]);
-
-            $user->assignRole('customer');
-        }
-
-        // Even after passing DNS validation, actual SMTP send can still fail
-        // (e.g. mailbox doesn't exist, server rejects it). Catch that too.
-        try {
-            Mail::to($user->email)->send(new OtpMail($otp, $user->name));
-        } catch (\Exception $e) {
-            // Don't leave a half-registered user sitting in the DB if mail failed
-            // and it was a brand-new registration (not a resend on existing unverified user).
-            if (!$existingUser) {
-                $user->delete();
-            }
-
-            return response()->json([
-                'message' => 'Could not send OTP to this email. Please check the email is valid.',
-            ], 422);
-        }
-
+      // Already registered, verified, AND still active -> block
+      if ($existingUser && $existingUser->is_verified && $existingUser->account_status !== 'removed') {
         return response()->json([
-            'message' => 'OTP sent to your email. Please verify to complete registration.',
-            'email' => $user->email,
+            'message' => 'Email is already in use',
+        ], 422);
+        }
+
+      $otp = random_int(100000, 999999);
+      $otpExpiry = now()->addMinutes(10);
+
+      if ($existingUser && $existingUser->account_status === 'removed') {
+        // -----------------------------------------------------
+        // REMOVED (but not banned) seller coming back.
+        // Reactivate the SAME account/id so their old order
+        // history stays correctly linked — don't create a new user.
+        // -----------------------------------------------------
+        $existingUser->update([
+            'name' => $request->name,
+            'password' => Hash::make($request->password),
+            'otp' => $otp,
+            'otp_expires_at' => $otpExpiry,
+            'is_verified' => false,          // force re-verification via OTP
+            'account_status' => 'active',
+            'removed_reason' => null,
+            'removed_at' => null,
+        ]);
+
+        $existingUser->syncRoles(['customer']);
+
+        $user = $existingUser;
+       } elseif ($existingUser && !$existingUser->is_verified) {
+        // exists but never verified -> update details + resend otp
+        $existingUser->update([
+            'name' => $request->name,
+            'password' => Hash::make($request->password),
+            'otp' => $otp,
+            'otp_expires_at' => $otpExpiry,
+        ]);
+        $user = $existingUser;
+       } else {
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'otp' => $otp,
+            'otp_expires_at' => $otpExpiry,
+            'is_verified' => false,
+        ]);
+
+        $user->assignRole('customer');
+        }
+
+      Mail::to($user->email)->send(new OtpMail($otp, $user->name));
+
+     return response()->json([
+         'message' => 'OTP sent to your email. Please verify to complete registration.',
+         'email' => $user->email,
         ], 200);
     }
-
     // =========================
     // VERIFY OTP (Step 2: confirm registration)
     // =========================
@@ -245,13 +248,18 @@ public function resetPassword(Request $request)
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
 
+        // Check if the user is removed
+        if ($user->account_status === 'removed') {
+            return response()->json(['message' => 'Your Rice Mart account has been removed. Please check your email for details.',], 403);
+        }
+
         if (!$user->is_verified) {
             return response()->json(['message' => 'Please verify your email first'], 403);
         }
 
         $user->tokens()->delete();
         $token = $user->createToken('auth_token')->plainTextToken;
-        $shop = $user->shop()->first();
+        $shop = $user->shop()->where('status', '!=', 'removed')->first();
 
         return response()->json([
             'message' => 'Login successful',
@@ -272,7 +280,7 @@ public function resetPassword(Request $request)
     public function me(Request $request)
     {
         $user = $request->user();
-        $shop = $user->shop()->first();
+        $shop = $user->shop()->where('status', '!=', 'removed')->first();
 
         return response()->json([
             'user' => $user,
