@@ -6,19 +6,10 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
     public function up(): void {
-        Schema::table('products', function (Blueprint $table) {
-            $table->foreignId('shop_id')
-                  ->nullable()
-                  ->constrained('shops')
-                  ->onDelete('cascade')
-                  ->after('seller_id');
-        });
+        // Sab already exist hai — skip
     }
 
     public function down(): void {
-        Schema::table('products', function (Blueprint $table) {
-            $table->dropForeign(['shop_id']);
-            $table->dropColumn('shop_id');
-        });
+        //
     }
 };

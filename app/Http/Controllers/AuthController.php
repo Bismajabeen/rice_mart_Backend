@@ -28,26 +28,18 @@ class AuthController extends Controller
         // Generate 6-digit OTP
         $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
-        // Save OTP
+        // Save OTP with user data
         Otp::create([
             'email'      => $request->email,
             'otp'        => $otp,
             'expires_at' => now()->addMinutes(10),
+            'name'       => $request->name,
+            'username'   => $request->username,
+            'password'   => Hash::make($request->password),
         ]);
 
         // Send OTP email
         Mail::to($request->email)->send(new OtpMail($otp, $request->name));
-
-        // Save user data in session temporarily
-        session([
-            'pending_user' => [
-                'name'     => $request->name,
-                'username' => $request->username,
-                'email'    => $request->email,
-                'password' => Hash::make($request->password),
-                'role'     => 'user',
-            ]
-        ]);
 
         return response()->json([
             'message' => 'OTP sent to your email. Please verify.',
@@ -77,15 +69,15 @@ class AuthController extends Controller
         }
 
         // Create user
-        $pendingUser = session('pending_user');
+        $user = User::create([
+            'name'     => $otpRecord->name,
+            'username' => $otpRecord->username,
+            'email'    => $otpRecord->email,
+            'password' => $otpRecord->password,
+            'role'     => 'user',
+        ]);
 
-        if (!$pendingUser || $pendingUser['email'] !== $request->email) {
-            return response()->json(['message' => 'Session expired. Please register again.'], 400);
-        }
-
-        $user = User::create($pendingUser);
         $otpRecord->delete();
-        session()->forget('pending_user');
 
         return response()->json([
             'message' => 'Account created successfully! Please login.',
@@ -100,9 +92,9 @@ class AuthController extends Controller
             'email' => 'required|email',
         ]);
 
-        $pendingUser = session('pending_user');
+        $otpRecord = Otp::where('email', $request->email)->first();
 
-        if (!$pendingUser || $pendingUser['email'] !== $request->email) {
+        if (!$otpRecord) {
             return response()->json(['message' => 'Session expired. Please register again.'], 400);
         }
 
@@ -114,9 +106,12 @@ class AuthController extends Controller
             'email'      => $request->email,
             'otp'        => $otp,
             'expires_at' => now()->addMinutes(10),
+            'name'       => $otpRecord->name,
+            'username'   => $otpRecord->username,
+            'password'   => $otpRecord->password,
         ]);
 
-        Mail::to($request->email)->send(new OtpMail($otp, $pendingUser['name']));
+        Mail::to($request->email)->send(new OtpMail($otp, $otpRecord->name));
 
         return response()->json(['message' => 'OTP resent successfully.'], 200);
     }
