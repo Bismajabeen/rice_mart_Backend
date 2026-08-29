@@ -22,10 +22,15 @@ class ChatController extends Controller
     {
         $user = Auth::user();
 
-        // If user is a seller, get their shop's conversations
-        $shop = Shop::where('user_id', $user->id)->first();
+        // IMPORTANT: don't decide buyer/seller purely by "does a shop
+        // row exist for this user_id" — a leftover/rejected/deleted
+        // shop row can wrongly flip a real customer into the seller
+        // branch and silently return an empty list.
+        // Use the user's actual role instead.
+        $isSeller = method_exists($user, 'hasRole') ? $user->hasRole('seller') : false;
+        $shop = $isSeller ? Shop::where('user_id', $user->id)->first() : null;
 
-        if ($shop) {
+        if ($isSeller && $shop) {
             $conversations = Conversation::where('shop_id', $shop->id)
                 ->with(['buyer', 'lastMessage'])
                 ->orderByDesc('last_message_at')

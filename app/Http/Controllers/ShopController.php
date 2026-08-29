@@ -9,6 +9,7 @@ use App\Models\RiceCategory;
 use Illuminate\Support\Facades\DB;
 use App\Mail\DeleteShopOtpMail;
 use Illuminate\Support\Facades\Mail;
+use App\Services\NotificationService;
 
 class ShopController extends Controller
 {
@@ -34,7 +35,6 @@ class ShopController extends Controller
             ->where('status', '!=', 'removed')
             ->first();
 
-        // Only an in-progress or active shop should actually block a new application.
         if ($existingShop && in_array($existingShop->status, ['pending', 'approved'])) {
             return response()->json([
                 'success' => false,
@@ -45,7 +45,6 @@ class ShopController extends Controller
         $cnicImagePath = $request->file('cnic_image')->store('shops/cnic', 'public');
         $cnicBackImagePath = $request->file('cnic_back_image')->store('shops/cnic', 'public');
 
-        // A rejected shop reapplying -> reuse the same row instead of creating a duplicate.
         if ($existingShop && $existingShop->status === 'rejected') {
             if ($existingShop->cnic_image && \Illuminate\Support\Facades\Storage::disk('public')->exists($existingShop->cnic_image)) {
                 \Illuminate\Support\Facades\Storage::disk('public')->delete($existingShop->cnic_image);
@@ -54,7 +53,7 @@ class ShopController extends Controller
                 \Illuminate\Support\Facades\Storage::disk('public')->delete($existingShop->cnic_back_image);
             }
 
-        $existingShop->update([
+            $existingShop->update([
                 'cnic' => $request->cnic,
                 'cnic_image' => $cnicImagePath,
                 'cnic_back_image' => $cnicBackImagePath,
@@ -77,7 +76,6 @@ class ShopController extends Controller
             ]);
         }
 
-        // Brand-new applicant, or a reactivated (previously removed) account.
         $shop = Shop::create([
             'user_id' => $request->user()->id,
             'cnic' => $request->cnic,
@@ -93,9 +91,6 @@ class ShopController extends Controller
             'is_approved' => 0,
         ]);
 
-        // =========================
-        // NOTIFY ADMINS — new shop needs review
-        // =========================
         NotificationService::sendToAdmins(
             'shop_pending',
             'New shop pending approval',
@@ -109,9 +104,6 @@ class ShopController extends Controller
         ]);
     }
 
-    // =========================
-    // PENDING SHOPS
-    // =========================
     public function pendingShops()
     {
         return response()->json(
@@ -122,9 +114,6 @@ class ShopController extends Controller
         );
     }
 
-    // =========================
-    // APPROVED SHOPS
-    // =========================
     public function approvedShops()
     {
         return response()->json(
@@ -135,9 +124,6 @@ class ShopController extends Controller
         );
     }
 
-    // =========================
-    // APPROVE SHOP
-    // =========================
     public function approve($id)
     {
         $shop = Shop::findOrFail($id);
@@ -155,9 +141,6 @@ class ShopController extends Controller
         if ($user) {
             $user->syncRoles(['seller']);
 
-            // =========================
-            // NOTIFY SELLER — shop approved
-            // =========================
             NotificationService::send(
                 $user,
                 'shop_status',
@@ -190,6 +173,18 @@ class ShopController extends Controller
             'correction_reason' => null,
             'correction_requested_at' => null,
         ]);
+
+        // FIX #2: seller/customer ko notification jana chahiye tha, missing tha
+        if ($shop->user) {
+            NotificationService::send(
+                $shop->user,
+                'shop_status',
+                'Shop rejected',
+                'Your shop "' . $shop->shop_name . '" was rejected. Reason: ' . $request->reason,
+                ['shop_id' => $shop->id]
+            );
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Shop rejected successfully',
@@ -204,9 +199,6 @@ class ShopController extends Controller
         );
     }
 
-    // =========================
-    // ADMIN REQUEST CORRECTION
-    // =========================
     public function requestCorrection(Request $request, $id)
     {
         if (!$request->user()->hasAnyRole(['admin', 'super_admin'])) {
@@ -234,9 +226,6 @@ class ShopController extends Controller
             'rejection_reason' => null,
         ]);
 
-        // =========================
-        // NOTIFY SHOP OWNER — correction requested
-        // =========================
         NotificationService::send(
             $shop->user,
             'shop_status',
@@ -252,9 +241,6 @@ class ShopController extends Controller
         ]);
     }
 
-    // =========================
-    // ADMIN CREATE SELLER (SAFE TRANSACTION)
-    // =========================
     public function adminCreateSeller(Request $request)
     {
         $request->validate([
@@ -302,9 +288,6 @@ class ShopController extends Controller
                 'status' => 'approved',
             ]);
 
-            // =========================
-            // NOTIFY SELLER — account + shop created and auto-approved
-            // =========================
             NotificationService::send(
                 $user,
                 'shop_status',
@@ -321,9 +304,6 @@ class ShopController extends Controller
         });
     }
 
-    // =========================
-    // UPDATE SHOP
-    // =========================
     public function update(Request $request, $id)
     {
         $shop = Shop::findOrFail($id);
@@ -373,9 +353,6 @@ class ShopController extends Controller
 
         $shop->update($data);
 
-        // =========================
-        // NOTIFY ADMINS — seller resubmitted after correction request
-        // =========================
         NotificationService::sendToAdmins(
             'shop_pending',
             'Shop resubmitted',
@@ -389,9 +366,6 @@ class ShopController extends Controller
         ]);
     }
 
-    // =========================
-    // SELLER — REQUEST SHOP DELETION (SEND OTP)
-    // =========================
     public function requestShopDeletion(Request $request, $id)
     {
         $shop = Shop::findOrFail($id);
@@ -422,10 +396,7 @@ class ShopController extends Controller
         ]);
     }
 
-    // =========================
-    //  SELLER — CONFIRM SHOP DELETION (VERIFY OTP + DELETE)
-    //==========================
-        public function confirmShopDeletion(Request $request, $id)
+    public function confirmShopDeletion(Request $request, $id)
     {
         $request->validate([
             'otp' => 'required',
@@ -448,7 +419,7 @@ class ShopController extends Controller
         if (now()->greaterThan($user->otp_expires_at)) {
             return response()->json(['OTP expired. Please request a new one.'], 422);
         }
-        // Consume the OTP so it can't be reused for anything else
+
         $user->update([
             'otp' => null,
             'otp_expires_at' => null,
@@ -461,12 +432,8 @@ class ShopController extends Controller
             'success' => true,
             'message' => 'Shop deleted successfully.',
         ]);
-
     }
 
-    // =========================
-    // UPDATE RICE (FIXED)
-    // =========================
     public function updateRice(Request $request, $id)
     {
         $request->validate([
@@ -504,9 +471,6 @@ class ShopController extends Controller
         ]);
     }
 
-    // =========================
-    // SELLER — UPDATE PAYOUT DETAILS
-    // =========================
     public function updatePayoutDetails(Request $request)
     {
         $shop = $request->user()->shop()->whereNotIn('status', ['removed', 'rejected'])->first();
