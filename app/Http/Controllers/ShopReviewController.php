@@ -72,6 +72,16 @@ class ShopReviewController extends Controller
           );
       }
 
+      // =========================
+      // NOTIFY ADMIN + SUPER ADMIN — new review submitted
+      // =========================
+      NotificationService::sendToAdmins(
+          'review',
+          'New review submitted',
+          ($item->shop->shop_name ?? 'A shop') . ' received a ' . $request->rating . '-star review.',
+          ['shop_id' => $item->shop_id, 'review_id' => $review->id]
+      );
+
       return response()->json([
         'message'=>'Review submitted successfully',
         'review'=>$review
@@ -82,13 +92,22 @@ class ShopReviewController extends Controller
 
     // =========================
     // GET REVIEWS FOR A SHOP
-    // Any authenticated user (customer, seller, admin) can view a
-    // shop's reviews — customers need this on the shop details page
-    // before purchasing. No ownership check is required for reading.
+    // Seller can view their own shop's reviews; admin/super_admin can
+    // view any shop's reviews.
     // =========================
     public function shopReviews(Request $request, $shopId)
     {
         $shop = Shop::findOrFail($shopId);
+        $user = $request->user();
+
+        $isOwner = $shop->user_id === $user->id;
+        $isAdmin = $user->hasAnyRole(['admin', 'super_admin']);
+
+        if (!$isOwner && !$isAdmin) {
+            return response()->json([
+                'message' => 'Unauthorized',
+            ], 403);
+        }
 
         $reviews = ShopReview::with('customer:id,name')
             ->where('shop_id', $shopId)
