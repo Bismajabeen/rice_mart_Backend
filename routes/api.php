@@ -358,7 +358,7 @@ Route::middleware('auth:sanctum')->group(function () {
         ShopController::class,
         'approvedShops'
     ]);
-    // ->middleware('permission:view all shops');
+     //->middleware('permission:view all shops');
 
     Route::post('/shops/{id}/approve', [
         ShopController::class,
@@ -512,11 +512,17 @@ Route::middleware('auth:sanctum')->group(function () {
        'pay'
     ])->middleware('permission:update any order status');
 
-    // shop review route
+        // shop review route
 
     Route::post('/shop-review',[
         ShopReviewController::class,
         'store'
+    ]);
+
+    // GET shop reviews — visible to any authenticated user (customer, seller, admin, super_admin)
+    Route::get('/shops/{shopId}/reviews', [
+        ShopReviewController::class,
+        'shopReviews'
     ]);
 
     //
