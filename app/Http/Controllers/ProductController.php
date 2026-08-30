@@ -6,9 +6,16 @@ use App\Models\Product;
 use App\Models\Shop;
 use App\Models\RiceCategory;
 use Illuminate\Http\Request;
+use App\Services\NotificationService;
 
 class ProductController extends Controller
 {
+    // =========================
+    // LOW STOCK THRESHOLD
+    // (isse badal ke apni marzi ka number rakh sakti ho)
+    // =========================
+    const LOW_STOCK_THRESHOLD = 5;
+
     // =========================
     // CREATE PRODUCT
     // =========================
@@ -63,6 +70,19 @@ class ProductController extends Controller
             'image' => $imagePath,
         ]);
 
+        // =========================
+        // NOTIFY SELLER — new product already low on stock
+        // =========================
+        if ($product->stock <= self::LOW_STOCK_THRESHOLD) {
+            NotificationService::send(
+                $shop->user,
+                'low_stock',
+                'Low stock',
+                '"' . $product->name . '" was added with only ' . $product->stock . ' left in stock.',
+                ['product_id' => $product->id, 'shop_id' => $shop->id]
+            );
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Product created successfully',
@@ -115,11 +135,12 @@ class ProductController extends Controller
         ]);
 
         // ✅ Ownership check through shop
-        $product = Product::where('id', $id)
-         ->whereHas('shop', function ($query) {
-             $query->where('user_id', auth()->id());
-             $query->where('is_approved', 1);
-             $query->where('status', 'approved');
+        $product = Product::with('shop.user')
+            ->where('id', $id)
+            ->whereHas('shop', function ($query) {
+                $query->where('user_id', auth()->id());
+                $query->where('is_approved', 1);
+                $query->where('status', 'approved');
             })
             ->first();
 
@@ -128,6 +149,10 @@ class ProductController extends Controller
                 'message' => 'Unauthorized access to product'
             ], 403);
         }
+
+        // Track whether we're crossing INTO low stock (so we don't spam a
+        // notification every single time it's edited while already low)
+        $wasAboveThreshold = $product->stock > self::LOW_STOCK_THRESHOLD;
 
         $updateData = [
             'price' => $request->price,
@@ -144,6 +169,19 @@ class ProductController extends Controller
         }
 
         $product->update($updateData);
+
+        // =========================
+        // NOTIFY SELLER — stock just dropped to/below threshold
+        // =========================
+        if ($wasAboveThreshold && $product->stock <= self::LOW_STOCK_THRESHOLD) {
+            NotificationService::send(
+                $product->shop->user,
+                'low_stock',
+                'Low stock',
+                '"' . $product->name . '" is running low — only ' . $product->stock . ' left.',
+                ['product_id' => $product->id, 'shop_id' => $product->shop_id]
+            );
+        }
 
         return response()->json([
             'success' => true,
