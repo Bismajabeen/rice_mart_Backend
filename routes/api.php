@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ShopController;
+use App\Http\Controllers\ChatController;
 use Illuminate\Support\Facades\Route;
 
 // ── Auth Routes ───────────────────────────────────────────────
@@ -24,17 +25,17 @@ Route::get('/admin/products',             [ProductController::class, 'allProduct
 Route::put('/admin/products/{id}/status', [ProductController::class, 'updateStatus']);
 
 // ── Shop Routes ───────────────────────────────────────────────
-// NOTE: specific/static routes (pending, seller/shop, admin/*) must come
-// BEFORE the '/shops/{id}' route, otherwise Laravel will treat words
-// like "pending" as an {id} and call show() instead of pendingShops().
+Route::get('/admin/shops/pending',      [ShopController::class, 'pendingShops']);
+Route::get('/admin/shops',              [ShopController::class, 'allShops']);
+Route::put('/admin/shops/{id}/status',  [ShopController::class, 'updateStatus']);
+Route::get('/seller/shop',              [ShopController::class, 'myShop']);
+Route::get('/shops',                    [ShopController::class, 'index']);
+Route::post('/shops',                   [ShopController::class, 'store']);
+Route::get('/shops/{id}',               [ShopController::class, 'show']);
+Route::put('/shops/{id}',               [ShopController::class, 'update']);
 
-Route::get('/admin/shops/pending',      [ShopController::class, 'pendingShops']); // admin: pending shops
-Route::get('/admin/shops',              [ShopController::class, 'allShops']);     // admin: all shops
-Route::put('/admin/shops/{id}/status',  [ShopController::class, 'updateStatus']); // admin: approve/reject
-
-Route::get('/seller/shop',              [ShopController::class, 'myShop']);       // seller: apni shop
-
-Route::get('/shops',                    [ShopController::class, 'index']);        // public: approved shops list
-Route::post('/shops',                   [ShopController::class, 'store']);        // seller: create shop
-Route::get('/shops/{id}',               [ShopController::class, 'show']);         // public: single shop + products
-Route::put('/shops/{id}',               [ShopController::class, 'update']);       // seller: update shop
+// ── Chat Routes ───────────────────────────────────────────────
+Route::post('/chat/start',              [ChatController::class, 'startConversation']);
+Route::get('/chat/{conversationId}',    [ChatController::class, 'getMessages']);
+Route::post('/chat/send',               [ChatController::class, 'sendMessage']);
+Route::get('/conversations',            [ChatController::class, 'getConversations']);

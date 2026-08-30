@@ -38,8 +38,15 @@ class AuthController extends Controller
             'password'   => Hash::make($request->password),
         ]);
 
-        // Send OTP email
-        Mail::to($request->email)->send(new OtpMail($otp, $request->name));
+        // Send OTP — agar email exist nahi karti toh error
+        try {
+            Mail::to($request->email)->send(new OtpMail($otp, $request->name));
+        } catch (\Exception $e) {
+            Otp::where('email', $request->email)->delete();
+            return response()->json([
+                'message' => 'Email account not found. Please use a valid email address.',
+            ], 422);
+        }
 
         return response()->json([
             'message' => 'OTP sent to your email. Please verify.',
@@ -68,7 +75,6 @@ class AuthController extends Controller
             return response()->json(['message' => 'OTP expired. Please register again.'], 400);
         }
 
-        // Create user
         $user = User::create([
             'name'     => $otpRecord->name,
             'username' => $otpRecord->username,
@@ -111,7 +117,11 @@ class AuthController extends Controller
             'password'   => $otpRecord->password,
         ]);
 
-        Mail::to($request->email)->send(new OtpMail($otp, $otpRecord->name));
+        try {
+            Mail::to($request->email)->send(new OtpMail($otp, $otpRecord->name));
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to send OTP.'], 422);
+        }
 
         return response()->json(['message' => 'OTP resent successfully.'], 200);
     }
