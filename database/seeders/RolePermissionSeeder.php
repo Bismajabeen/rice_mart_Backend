@@ -81,6 +81,9 @@ class RolePermissionSeeder extends Seeder
             'approve shops',
             'reject shops',
 
+            // NEW: admin/super admin permanently removing a seller from a shop
+            'remove sellers',
+
             // =========================
             // SELLER REQUESTS
             // =========================
@@ -131,6 +134,9 @@ class RolePermissionSeeder extends Seeder
 
             'manage payments',
             'receive payments',
+
+            // NEW: seller viewing their own payout records (distinct from viewing orders)
+            'view own payouts',
 
             // =========================
             // CHAT & MESSAGES
@@ -247,9 +253,29 @@ class RolePermissionSeeder extends Seeder
             'delete categories',
 
             // =========================
+            // CITIES & COURIER CHARGES
+            // =========================
+
+            // NEW: manage delivery cities + courier/shipping charges (admin settings area)
+            'manage cities',
+
+            // =========================
+            // COMPLAINTS
+            // =========================
+
+            // NEW: any customer/seller can file a complaint
+            'file complaints',
+            // NEW: view the full complaints list (not just "my complaints") - super admin only
+            'view complaints',
+            // NEW: reply to / change status of a complaint - super admin only, per business rule
+            'manage complaints',
+
+            // =========================
             // ROLES
             // =========================
 
+            // NEW: list roles in the role-management screen (separate from create/update/delete)
+            'view roles',
             'create roles',
             'update roles',
             'delete roles',
@@ -334,6 +360,10 @@ class RolePermissionSeeder extends Seeder
             'create seller request',
             'view own seller request',
 
+            // needed while their shop application is pending, so they can
+            // edit it if the admin sends back a correction request
+            'update own shop',
+
             'add to cart',
             'view cart',
             'update cart',
@@ -371,6 +401,8 @@ class RolePermissionSeeder extends Seeder
 
             'create reviews',
             'view reviews',
+
+            'file complaints',
         ]);
 
         // =========================================
@@ -419,12 +451,15 @@ class RolePermissionSeeder extends Seeder
             'view own notifications',
 
             'view shop payments',
+            'view own payouts',
 
             'manage own inventory',
 
             'update own profile',
 
             'update own settings',
+
+            'file complaints',
         ]);
 
         // =========================================
@@ -440,6 +475,7 @@ class RolePermissionSeeder extends Seeder
             'delete any shop',
             'approve shops',
             'reject shops',
+            'remove sellers',
 
             'view all products',
             'update any products',
@@ -481,12 +517,22 @@ class RolePermissionSeeder extends Seeder
             'update categories',
             'delete categories',
 
+            'manage cities',
+
             'manage settings',
+
+            // NOTE: 'view complaints' / 'manage complaints' intentionally NOT
+            // given to admin — per your stated rule that only the Super Admin
+            // responds to / resolves complaints.
         ]);
 
         // =========================================
         // SUPER ADMIN PERMISSIONS
         // =========================================
+        // Super Admin gets every permission that exists — including
+        // role/permission management and complaint handling, neither of
+        // which Admin has. Anything added to $permissions above
+        // automatically becomes available to Super Admin here.
 
         $superAdmin->syncPermissions($permissions);
     }

@@ -67,10 +67,10 @@ class ComplaintController extends Controller
         return response()->json($complaints);
     }
 
-    // GET /api/complaints — Super Admin only (full access = whole system)
+    // GET /api/complaints — Super Admin only
     public function index(Request $request): JsonResponse
     {
-        abort_unless($request->user()->can('full access'), 403, 'Forbidden');
+        abort_unless($request->user()->can('view complaints'), 403, 'Forbidden');
 
         $query = Complaint::with('user:id,name,email')->latest();
 
@@ -86,7 +86,7 @@ class ComplaintController extends Controller
     {
         $user = $request->user();
 
-        if ($complaint->user_id !== $user->id && !$user->can('full access')) {
+        if ($complaint->user_id !== $user->id && !$user->can('view complaints')) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
@@ -98,7 +98,7 @@ class ComplaintController extends Controller
     {
         $user = $request->user();
         $isOwner = $complaint->user_id === $user->id;
-        $isSuperAdmin = $user->can('full access');
+        $isSuperAdmin = $user->can('manage complaints');
 
         if (!$isOwner && !$isSuperAdmin) {
             return response()->json(['message' => 'Forbidden'], 403);
@@ -154,7 +154,7 @@ class ComplaintController extends Controller
     // PATCH /api/complaints/{id}/status — Super Admin only
     public function updateStatus(Request $request, Complaint $complaint): JsonResponse
     {
-        abort_unless($request->user()->can('full access'), 403, 'Forbidden');
+        abort_unless($request->user()->can('manage complaints'), 403, 'Forbidden');
 
         $validated = $request->validate([
             'status' => 'required|in:open,in_progress,resolved',
