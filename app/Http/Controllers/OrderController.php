@@ -219,6 +219,7 @@ class OrderController extends Controller
             'success' => true,
             'orders' => Order::with('payment', 'items.product', 'items.shop')
                 ->where('user_id', $request->user()->id)
+                ->where('payment_status', '!=', 'rejected')
                 ->whereHas('items', function ($q) {
                     $q->whereNotIn('status', ['delivered', 'cancelled']);
                 })
@@ -236,8 +237,11 @@ class OrderController extends Controller
             'success' => true,
             'orders' => Order::with('payment', 'items.product', 'items.shop')
                 ->where('user_id', $request->user()->id)
-                ->whereDoesntHave('items', function ($q) {
-                    $q->whereNotIn('status', ['delivered', 'cancelled']);
+                ->where(function ($q) {
+                    $q->where('payment_status', 'rejected')
+                       ->orWhereDoesntHave('items', function ($q2) {
+                           $q2->whereNotIn('status', ['delivered', 'cancelled']);
+                       });
                 })
                 ->latest()
                 ->get(),
