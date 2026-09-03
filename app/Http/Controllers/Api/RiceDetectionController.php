@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\RiceCategory;
 use App\Models\RiceDetectionLog;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
 class RiceDetectionController extends Controller
@@ -20,34 +19,22 @@ class RiceDetectionController extends Controller
         $start = microtime(true);
 
         $path = $request->file('image')->store('rice_uploads', 'public');
-        $fullPath = storage_path('app/public/' . $path);
 
         try {
-            $mlServiceUrl = config('services.rice_ml.url', 'http://127.0.0.1:5000/predict');
-
-            $response = Http::attach(
-                'image',
-                file_get_contents($fullPath),
-                basename($fullPath)
-            )->post($mlServiceUrl);
-
-            if (!$response->successful()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'ML service failed to classify the image.',
-                ], 502);
-            }
-
-            $mlResult = $response->json();
-            $label = $mlResult['label'] ?? null;
-            $confidence = $mlResult['confidence'] ?? 0;
+            // ───── TEMPORARY MOCK (real AI model abhi tak nahi laga) ─────
+            // Jab tak ML model ready nahi hota, hum random category return karenge
+            // taake frontend test ho sake.
+            $mockLabels = ['basmati', 'parboiled', 'sella', 'brown', 'sticky'];
+            $label = $mockLabels[array_rand($mockLabels)];
+            $confidence = round(mt_rand(85, 99) / 100, 2);
+            // ──────────────────────────────────────────────────────────
 
             $category = RiceCategory::where('model_label', $label)->first();
 
             if (!$category) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Category could not be matched. Please try another image.',
+                    'message' => 'Category could not be matched.',
                 ], 404);
             }
 
