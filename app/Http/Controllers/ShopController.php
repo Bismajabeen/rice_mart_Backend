@@ -181,7 +181,7 @@ class ShopController extends Controller
                 'shop_status',
                 'Shop rejected',
                 'Your shop "' . $shop->shop_name . '" was rejected. Reason: ' . $request->reason,
-                ['shop_id' => $shop->id]
+                ['shop_id' => $shop->id, 'shop_status' => 'rejected']
             );
         }
 
