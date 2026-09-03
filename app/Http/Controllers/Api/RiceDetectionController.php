@@ -22,8 +22,6 @@ class RiceDetectionController extends Controller
 
         try {
             // ───── TEMPORARY MOCK (real AI model abhi tak nahi laga) ─────
-            // Jab tak ML model ready nahi hota, hum random category return karenge
-            // taake frontend test ho sake.
             $mockLabels = ['basmati', 'parboiled', 'sella', 'brown', 'sticky'];
             $label = $mockLabels[array_rand($mockLabels)];
             $confidence = round(mt_rand(85, 99) / 100, 2);
@@ -78,6 +76,52 @@ class RiceDetectionController extends Controller
         return response()->json([
             'success' => true,
             'data' => $logs,
+        ]);
+    }
+
+    /**
+     * GET /api/rice/recommend?use_case=biryani
+     * Recommends the best-matching rice category based on the
+     * user's selected use-case (biryani, daily, diet, dessert),
+     * matched against the 'common_uses' text field.
+     */
+    public function recommend(Request $request)
+    {
+        $request->validate([
+            'use_case' => 'required|string',
+        ]);
+
+        $useCase = strtolower($request->input('use_case'));
+
+        // Map friendly use-case keys to keywords found in common_uses column
+        $keywordMap = [
+            'biryani' => 'Biryani',
+            'daily'   => 'Daily cooking',
+            'diet'    => 'diet',
+            'dessert' => 'Dessert',
+        ];
+
+        $keyword = $keywordMap[$useCase] ?? $useCase;
+
+        $matches = RiceCategory::where('common_uses', 'like', "%{$keyword}%")
+            ->orWhere('description', 'like', "%{$keyword}%")
+            ->get();
+
+        if ($matches->isEmpty()) {
+            // Fallback: recommend the most commonly used all-rounder (Basmati)
+            $matches = RiceCategory::where('model_label', 'basmati')->get();
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $matches->map(function ($cat) {
+                return [
+                    'category' => $cat->name,
+                    'cooking_time' => $cat->cooking_time,
+                    'common_uses' => $cat->common_uses,
+                    'description' => $cat->description,
+                ];
+            }),
         ]);
     }
 }

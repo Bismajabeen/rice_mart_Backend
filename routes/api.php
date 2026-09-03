@@ -44,3 +44,4 @@ Route::get('/conversations',            [ChatController::class, 'getConversation
 // ── Rice Detection Routes ────────────────────────────────────
 Route::post('/rice/detect',             [RiceDetectionController::class, 'detect']);
 Route::get('/rice/history',             [RiceDetectionController::class, 'history']);
+Route::get('/rice/recommend',           [RiceDetectionController::class, 'recommend']);
