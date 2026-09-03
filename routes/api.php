@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\Api\RiceDetectionController;
 use Illuminate\Support\Facades\Route;
 
 // ── Auth Routes ───────────────────────────────────────────────
@@ -39,3 +40,7 @@ Route::post('/chat/start',              [ChatController::class, 'startConversati
 Route::get('/chat/{conversationId}',    [ChatController::class, 'getMessages']);
 Route::post('/chat/send',               [ChatController::class, 'sendMessage']);
 Route::get('/conversations',            [ChatController::class, 'getConversations']);
+
+// ── Rice Detection Routes ────────────────────────────────────
+Route::post('/rice/detect',             [RiceDetectionController::class, 'detect']);
+Route::get('/rice/history',             [RiceDetectionController::class, 'history']);
