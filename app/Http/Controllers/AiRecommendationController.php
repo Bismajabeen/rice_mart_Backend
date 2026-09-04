@@ -25,7 +25,11 @@ class AiRecommendationController extends Controller
                     'name'          => $p->name,
                     'price'         => $p->price,
                     'stock'         => $p->stock,
+                    'shop_id'          => optional($p->shop)->id,
                     'shop_name'     => optional($p->shop)->shop_name ?? 'N/A',
+                    'shop_address'     => optional($p->shop)->address ?? '',
+                    'shop_owner_name'  => optional($p->shop)->owner_name ?? '',
+                    'shop_description' => optional($p->shop)->description ?? '',
                     'category_name' => optional($p->riceCategory)->name ?? 'N/A',
                 ];
             })
