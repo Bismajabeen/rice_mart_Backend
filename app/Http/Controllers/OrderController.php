@@ -203,7 +203,7 @@ class OrderController extends Controller
     {
         return response()->json([
             'success' => true,
-            'orders' => Order::with('payment', 'items.product', 'items.shop')
+            'orders' => Order::with('payment', 'items.product', 'items.shop', 'items.review')
                 ->where('user_id', $request->user()->id)
                 ->latest()
                 ->get(),
@@ -217,7 +217,7 @@ class OrderController extends Controller
     {
         return response()->json([
             'success' => true,
-            'orders' => Order::with('payment', 'items.product', 'items.shop')
+            'orders' => Order::with('payment', 'items.product', 'items.shop', 'items.review')
                 ->where('user_id', $request->user()->id)
                 ->where('payment_status', '!=', 'rejected')
                 ->whereHas('items', function ($q) {
@@ -235,7 +235,7 @@ class OrderController extends Controller
     {
         return response()->json([
             'success' => true,
-            'orders' => Order::with('payment', 'items.product', 'items.shop')
+            'orders' => Order::with('payment', 'items.product', 'items.shop', 'items.review')
                 ->where('user_id', $request->user()->id)
                 ->where(function ($q) {
                     $q->where('payment_status', 'rejected')
