@@ -5,6 +5,8 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Shop;
 use App\Models\User;
+use App\Models\AppNotification;
+use App\Events\NewNotificationEvent;
 use Illuminate\Http\Request;
 
 class ChatController extends Controller
@@ -88,6 +90,21 @@ class ChatController extends Controller
         ]);
 
         $conversation->update(['last_message_at' => now()]);
+
+        // ── Notification bhejna: dusre banda (receiver) ko batana ──
+        $receiverId = $conversation->buyer_id == $user->id
+            ? $conversation->seller_id
+            : $conversation->buyer_id;
+
+        $notification = AppNotification::create([
+            'user_id' => $receiverId,
+            'type' => 'chat_message',
+            'title' => 'New Message',
+            'message' => $user->name . ' sent you a message',
+            'related_id' => $conversation->id,
+        ]);
+
+        broadcast(new NewNotificationEvent($notification));
 
         return response()->json([
             'message' => $message->load('sender:id,name')

@@ -5,6 +5,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\Api\RiceDetectionController;
+use App\Http\Controllers\Api\NotificationController;
 use Illuminate\Support\Facades\Route;
 
 // ── Auth Routes ───────────────────────────────────────────────
@@ -45,3 +46,10 @@ Route::get('/conversations',            [ChatController::class, 'getConversation
 Route::post('/rice/detect',             [RiceDetectionController::class, 'detect']);
 Route::get('/rice/history',             [RiceDetectionController::class, 'history']);
 Route::get('/rice/recommend',           [RiceDetectionController::class, 'recommend']);
+
+// ── Notification Routes ──────────────────────────────────────
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/notifications',              [NotificationController::class, 'index']);
+    Route::put('/notifications/{id}/read',    [NotificationController::class, 'markAsRead']);
+    Route::put('/notifications/read-all',     [NotificationController::class, 'markAllAsRead']);
+});
