@@ -8,7 +8,7 @@ class SellerPayout extends Model
 {
     protected $fillable = [
         'order_id', 'shop_id',
-        'gross_amount', 'commission_amount', 'net_amount',
+        'gross_amount', 'commission_amount', 'net_amount', 'delivery_charge',
         'status', 'payout_method', 'transaction_id', 'proof_path',
         'paid_at', 'paid_by',
     ];
@@ -17,6 +17,7 @@ class SellerPayout extends Model
         'gross_amount' => 'float',
         'commission_amount' => 'float',
         'net_amount' => 'float',
+        'delivery_charge' => 'float',
         'paid_at' => 'datetime',
     ];
 

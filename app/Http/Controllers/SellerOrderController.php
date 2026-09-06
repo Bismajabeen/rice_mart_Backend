@@ -24,6 +24,7 @@ class SellerOrderController extends Controller
         $items = OrderItem::with([
             'order.user',
             'order.payment',
+            'order.items',
             'product',
             'shop'
         ])
@@ -36,6 +37,22 @@ class SellerOrderController extends Controller
 
         ->latest()
         ->get();
+
+        // =========================
+        // ATTACH THIS SHOP'S SHARE OF THE DELIVERY CHARGE
+        // order.delivery_charge is the TOTAL across all shops in the
+        // order (see OrderController::checkout). Each shop's actual
+        // portion is always delivery_charge / distinct shop count.
+        // =========================
+
+        foreach ($items as $item) {
+            $shopCount = $item->order->items->pluck('shop_id')->unique()->count();
+                
+            $item->order->shop_delivery_charge = $shopCount > 0
+                ? round($item->order->delivery_charge / $shopCount, 2)
+                : $item->order->delivery_charge;
+
+        }
 
         return response()->json([
             'success' => true,
