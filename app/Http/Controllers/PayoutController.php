@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\SellerPayout;
 use App\Services\NotificationService;
+use Illuminate\Support\Facades\Storage;
 
 class PayoutController extends Controller
 {
@@ -17,11 +18,18 @@ class PayoutController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
+        $payouts = SellerPayout::with(['order', 'shop', 'admin'])
+            ->latest()
+            ->get();
+        $payouts->each(function ($payout) {
+            $payout->proof_url = $payout->proof_path
+            ? asset(Storage::url($payout->proof_path))
+            : null;
+        });
+
         return response()->json([
             'success' => true,
-            'payouts' => SellerPayout::with(['order', 'shop', 'admin'])
-                ->latest()
-                ->get(),
+            'payouts' => $payouts,
         ]);
     }
 
@@ -48,6 +56,25 @@ class PayoutController extends Controller
             'transaction_id' => 'required|string|max:255',
             'proof' => 'required|image|max:2048',
         ]);
+        // Block payout if the seller hasn't added the account for the chosen method
+        $shop = $payout->shop;
+
+        $sellerHasEasypaisa = !empty($shop->payout_easypaisa_number);
+        $sellerHasJazzcash = !empty($shop->payout_jazzcash_number);
+
+        if ($request->payout_method === 'easypaisa' && !$sellerHasEasypaisa) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The seller has not provided an Easypaisa account number.',
+            ], 400);
+        }
+
+        if ($request->payout_method === 'jazzcash' && !$sellerHasJazzcash) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The seller has not provided a JazzCash account number.',
+            ], 400);
+        }
 
         $proofPath = $request->file('proof')->store('payouts', 'public');
 
@@ -93,12 +120,20 @@ class PayoutController extends Controller
          return response()->json(['success' => false, 'message' => 'No shop found'], 404);
         }
 
-      return response()->json([
-         'success' => true,
-         'payouts' => SellerPayout::with('order')
+       $payouts = SellerPayout::with('order')
             ->where('shop_id', $shop->id)
             ->latest()
-            ->get(),
+            ->get();
+
+        $payouts->each(function ($payout) {
+            $payout->proof_url = $payout->proof_path
+            ? asset(Storage::url($payout->proof_path))
+            : null;
+        });
+
+      return response()->json([
+         'success' => true,
+         'payouts' => $payouts,
         ]);
 
     }
