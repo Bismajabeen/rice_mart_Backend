@@ -8,7 +8,7 @@ use App\Models\OrderItem;
 class SellerOrderController extends Controller
 {
     // =========================
-    // SELLER ORDERS LIST
+    // SELLER ORDERS LIST (grouped by order, not by item)
     // =========================
     public function sellerOrders(Request $request)
     {
@@ -39,31 +39,58 @@ class SellerOrderController extends Controller
         ->get();
 
         // =========================
-        // ATTACH THIS SHOP'S SHARE OF THE DELIVERY CHARGE
-        // order.delivery_charge is the TOTAL across all shops in the
-        // order (see OrderController::checkout). Each shop's actual
-        // portion is always delivery_charge / distinct shop count.
+        // GROUP THIS SHOP'S ITEMS BY ORDER
+        // Each group becomes ONE "order card" for the seller,
+        // even if the customer bought several items from this shop.
         // =========================
+        $grouped = $items->groupBy('order_id')->map(function ($shopItems) {
+            $order = $shopItems->first()->order;
 
-        foreach ($items as $item) {
-            $shopCount = $item->order->items->pluck('shop_id')->unique()->count();
-                
-            $item->order->shop_delivery_charge = $shopCount > 0
-                ? round($item->order->delivery_charge / $shopCount, 2)
-                : $item->order->delivery_charge;
+            // this shop's share of the delivery charge
+            $shopCount = $order->items->pluck('shop_id')->unique()->count();
+            $shopDeliveryCharge = $shopCount > 0
+                ? round($order->delivery_charge / $shopCount, 2)
+                : $order->delivery_charge;
 
-        }
+            // overall status for THIS SHOP's items within the order
+            $statuses = $shopItems->pluck('status');
+
+            if ($statuses->every(fn ($s) => $s === 'delivered')) {
+                $shopOrderStatus = 'delivered';
+            } elseif ($statuses->every(fn ($s) => $s === 'cancelled')) {
+                $shopOrderStatus = 'cancelled';
+            } elseif ($statuses->contains('shipped')) {
+                $shopOrderStatus = 'shipped';
+            } elseif ($statuses->contains('processing')) {
+                $shopOrderStatus = 'processing';
+            } else {
+                $shopOrderStatus = 'pending';
+            }
+
+            return [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'customer_name' => $order->customer_name,
+                'phone' => $order->phone,
+                'address' => $order->address,
+                'shop' => $shopItems->first()->shop,
+                'shop_delivery_charge' => $shopDeliveryCharge,
+                'status' => $shopOrderStatus,
+                'items' => $shopItems->values(),
+            ];
+        })->values();
 
         return response()->json([
             'success' => true,
-            'orders' => $items
+            'orders' => $grouped
         ]);
     }
 
     // =========================
-    // SELLER UPDATE ORDER ITEM
+    // SELLER UPDATE ORDER STATUS (updates ALL of this shop's items
+    // in the order at once, keyed by order_id instead of item id)
     // =========================
-    public function updateStatus(Request $request, $id)
+    public function updateStatus(Request $request, $orderId)
     {
         $shop = $request->user()->shop()->first();
 
@@ -78,25 +105,24 @@ class SellerOrderController extends Controller
             'status' => 'required|in:processing,shipped,delivered'
         ]);
 
-        $item = OrderItem::with([
-            'order',
-            'order.items'
-        ])
-        ->where('id', $id)
-        ->where('shop_id', $shop->id)
-        ->first();
+        $items = OrderItem::with(['order', 'order.items'])
+            ->where('order_id', $orderId)
+            ->where('shop_id', $shop->id)
+            ->get();
 
-        if (!$item) {
+        if ($items->isEmpty()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Order item not found'
+                'message' => 'Order not found'
             ], 404);
         }
+
+        $order = $items->first()->order;
 
         // =========================
         // PAYMENT MUST BE APPROVED
         // =========================
-        if ($item->order->payment_status !== 'paid') {
+        if ($order->payment_status !== 'paid') {
             return response()->json([
                 'success' => false,
                 'message' => 'Payment not approved yet'
@@ -106,7 +132,7 @@ class SellerOrderController extends Controller
         // =========================
         // PREVENT CHANGES AFTER DELIVERY
         // =========================
-        if ($item->status === 'delivered') {
+        if ($items->contains(fn ($i) => $i->status === 'delivered')) {
             return response()->json([
                 'success' => false,
                 'message' => 'Delivered order cannot be changed'
@@ -114,25 +140,26 @@ class SellerOrderController extends Controller
         }
 
         // =========================
-        // UPDATE ITEM STATUS
+        // UPDATE ALL OF THIS SHOP'S ITEMS IN THE ORDER
         // =========================
-        $item->update([
-            'status' => $request->status
-        ]);
+        foreach ($items as $item) {
+            $item->update([
+                'status' => $request->status
+            ]);
+        }
 
         // =========================
-        // SYNC MAIN ORDER STATUS
+        // SYNC MAIN ORDER STATUS (across ALL shops in the order —
+        // same logic as before, untouched)
         // =========================
-        $order = $item->order;
-
-       $statuses = $order->items()->pluck('status');
+        $statuses = $order->items()->pluck('status');
 
         if ($statuses->every(fn ($s) => $s === 'delivered')) {
 
             $order->status = 'delivered';
 
         } elseif ($statuses->every(fn ($s) => $s === 'cancelled')) {
-            
+
             $order->status = 'cancelled';
 
         } elseif ($statuses->contains('shipped')) {
@@ -152,8 +179,8 @@ class SellerOrderController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Order item status updated successfully',
-            'item' => $item->fresh(),
+            'message' => 'Order status updated successfully',
+            'items' => $items->fresh(),
             'order_status' => $order->status
         ]);
     }

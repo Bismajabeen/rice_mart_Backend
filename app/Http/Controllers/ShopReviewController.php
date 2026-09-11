@@ -34,6 +34,26 @@ class ShopReviewController extends Controller
             ], 400);
         }
 
+        // =========================
+        // ONE REVIEW PER SHOP PER ORDER
+        // Even though this row is tied to a single order_item_id,
+        // block a second review for the same shop within the same
+        // order — no matter which item id the request is sent with.
+        // =========================
+
+        $alreadyReviewed = ShopReview::where('customer_id', auth()->id())
+            ->where('shop_id', $item->shop_id)
+            ->whereHas('orderItem', function ($q) use ($item) {
+                $q->where('order_id', $item->order_id);
+            })
+            ->exists();
+
+        if ($alreadyReviewed) {
+            return response()->json([
+                'message' => 'You have already reviewed this shop for this order',
+            ], 400);
+        }
+
         $review = ShopReview::create([
             'customer_id' => auth()->id(),
             'order_item_id' => $item->id,

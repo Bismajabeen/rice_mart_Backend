@@ -163,6 +163,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::put('/order-item/{id}/confirm-received', [OrderController::class, 'confirmReceived'])
         ->middleware('permission:view own orders');
+
+    Route::put('/order/{orderId}/shop/{shopId}/confirm-received', [OrderController::class,'confirmShopReceived'])
+        ->middleware('permission:view own orders');
 });
 
 
@@ -201,7 +204,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/seller-orders', [SellerOrderController::class, 'sellerOrders'])
         ->middleware('permission:view shop orders');
 
-    Route::put('/seller/order-item/{id}/status', [SellerOrderController::class, 'updateStatus'])
+    Route::put('/seller/order/{orderId}/status', [SellerOrderController::class, 'updateStatus'])
         ->middleware('permission:update order status');
 
     // Seller payouts

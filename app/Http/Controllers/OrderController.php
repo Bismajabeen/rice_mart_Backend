@@ -535,4 +535,64 @@ class OrderController extends Controller
             }
         }
     }
+
+    // =========================
+    // CUSTOMER CONFIRMS RECEIPT FOR ALL ITEMS FROM ONE SHOP IN AN ORDER
+    // =========================
+    public function confirmShopReceived(Request $request, $orderId, $shopId)
+    {
+     $items = OrderItem::where('order_id', $orderId)
+        ->where('shop_id', $shopId)
+        ->whereHas('order', fn ($q) => $q->where('user_id', $request->user()->id))
+        ->get();
+
+     if ($items->isEmpty()) {
+        return response()->json(['success' => false, 'message' => 'Items not found'], 404);
+     }
+
+     if ($items->contains(fn ($i) => $i->status !== 'delivered')) {
+        return response()->json([
+            'success' => false,
+            'message' => 'All items must be delivered before confirming',
+        ], 400);
+     }
+
+     if ($items->every(fn ($i) => $i->customer_confirmed_at !== null)) {
+        return response()->json(['success' => false, 'message' => 'Already confirmed'], 400);
+     }
+
+     foreach ($items as $item) {
+        if (!$item->customer_confirmed_at) {
+            $item->update(['customer_confirmed_at' => now()]);
+        }
+     }
+
+     // Same payout-ready logic as before, just no longer needs the
+     // "stillUnconfirmed" check since we just confirmed all of them.
+     $updated = SellerPayout::where('order_id', $orderId)
+        ->where('shop_id', $shopId)
+        ->where('status', 'pending')
+        ->update(['status' => 'ready']);
+
+     if ($updated) {
+        $payout = SellerPayout::where('order_id', $orderId)
+            ->where('shop_id', $shopId)
+            ->first();
+
+        $order = $items->first()->order;
+
+        NotificationService::sendToAdmins(
+            'payment_release',
+            'Payout ready',
+            'Customer confirmed receipt for order ' . ($order->order_number ?? $orderId) . ' — ready to pay seller.',
+            ['order_id' => $orderId, 'payout_id' => $payout?->id]
+        );
+     }
+
+     return response()->json([
+        'success' => true,
+        'message' => 'Thanks for confirming!',
+        'items' => $items->fresh(),
+        ]);
+    }
 }
