@@ -225,20 +225,6 @@ class ShopController extends Controller
             'correction_requested_at' => now(),
             'rejection_reason' => null,
         ]);
-
-        NotificationService::send(
-            $shop->user,
-            'shop_status',
-            'Correction requested',
-            'Admin requested a correction on your shop: ' . $request->reason,
-            ['shop_id' => $shop->id]
-        );
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Correction request sent',
-            'shop' => $shop,
-        ]);
     }
 
     public function adminCreateSeller(Request $request)
