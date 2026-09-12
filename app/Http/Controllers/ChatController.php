@@ -32,6 +32,7 @@ class ChatController extends Controller
 
         if ($isSeller && $shop) {
             $conversations = Conversation::where('shop_id', $shop->id)
+                ->whereHas('messages') 
                 ->with(['buyer', 'lastMessage'])
                 ->orderByDesc('last_message_at')
                 ->get()
@@ -51,6 +52,7 @@ class ChatController extends Controller
         } else {
             // Buyer — list all their conversations
             $conversations = Conversation::where('buyer_id', $user->id)
+                ->whereHas('messages')
                 ->with(['shop', 'lastMessage'])
                 ->orderByDesc('last_message_at')
                 ->get()
