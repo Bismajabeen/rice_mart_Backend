@@ -225,6 +225,12 @@ class ShopController extends Controller
             'correction_requested_at' => now(),
             'rejection_reason' => null,
         ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Correction requested successfully',
+            'shop' => $shop
+        ]);
     }
 
     public function adminCreateSeller(Request $request)
