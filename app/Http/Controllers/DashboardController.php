@@ -9,6 +9,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Payment;
+use App\Models\SellerPayout;
 
 class DashboardController extends Controller
 {
@@ -103,17 +104,17 @@ class DashboardController extends Controller
  
       $totalCustomers = User::role('customer')->count();
  
-      $totalShops = Shop::count();
- 
       $pendingShops = Shop::where('status', 'pending')->count();
  
       $approvedShops = Shop::where('status', 'approved')->count();
  
       $rejectedShops = Shop::where('status', 'rejected')->count();
+
+      $totalShops = $approvedShops;
  
       $totalOrders = Order::count();
  
-      $totalRevenue = Order::sum('total_price');
+      $totalRevenue = SellerPayout::sum('commission_amount');
  
       $activeProducts = Product::where('stock', '>', 0)->count();
  
