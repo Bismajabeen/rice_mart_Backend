@@ -206,6 +206,67 @@ class OrderController extends Controller
     }
 
     // =========================
+    // CUSTOMER — CANCEL AN UNPAID "CARD" ORDER
+   // Called by the Flutter app if the order was created but the Stripe
+   // payment-intent step (or the payment sheet) then failed — so the
+   // customer can retry with a different payment method without ending
+  // up with two orders for the same cart.
+  // =========================
+    public function cancelUnpaidCardOrder(Request $request, $id)
+    {
+        $order = Order::with('payment', 'items')
+            ->where('id', $id)
+            ->where('user_id', $request->user()->id)
+            ->first();
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found or unauthorized',
+            ], 404);
+        }
+
+        $payment = $order->payment;
+
+        // Only allow deleting orders exactly where checkout() left them:
+        // card method, nothing paid, no Stripe transaction recorded yet.
+        // Guards against cancelling an order that already has a real
+        // payment attached.
+
+        if (!$payment ||$payment->payment_method !== 'card' ||$payment->status === 'paid') {
+            return response()->json([
+                'success' => false,
+                'message' => 'This order cannot be cancelled',
+            ], 400);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // Stock is only decremented once payment succeeds
+            // (see PaymentController::markPaymentSuccessful), so there's
+            // nothing to restore here.
+            OrderItem::where('order_id', $order->id)->delete();
+            $payment->delete();
+            $order->delete();
+
+            DB::commit();
+            return response()->json([
+                'success' => true,
+                'message' => 'Unpaid card order cancelled successfully',
+            ]);
+        } catch (\Exception $e) {
+                DB::rollBack();
+
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 500);
+            }
+    }
+
+
+    // =========================
     // CUSTOMER ORDERS
     // =========================
     public function myOrders(Request $request)

@@ -151,6 +151,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Orders
     Route::post('/checkout', [OrderController::class, 'checkout'])
         ->middleware('permission:checkout orders');
+        
+    Route::delete('/orders/{id}/cancel-unpaid', [OrderController::class, 'cancelUnpaidCardOrder'])
+    ->middleware('permission:checkout orders');
 
     Route::get('/my-orders', [OrderController::class, 'myOrders'])
         ->middleware('permission:view own orders');
