@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\RiceCategory;
+use Illuminate\Support\Facades\Schema;
 
 class RiceCategorySeeder extends Seeder
 {
@@ -12,79 +13,86 @@ class RiceCategorySeeder extends Seeder
      */
     public function run(): void
     {
+        // Clear existing categories so this seeder reflects the
+        // current, final category list rather than appending to it.
+        Schema::disableForeignKeyConstraints();
+        RiceCategory::truncate();
+        Schema::enableForeignKeyConstraints();
+
         $categories = [
 
             [
-                'name' => 'IRRI-6',
-                'image' => 'null',
+                'name' => 'Basmati',
+                'image' => null,
                 'status' => true,
             ],
 
             [
-                'name' => 'Super Kernel Basmati',
-                'image' => 'null',
+                'name' => 'Extra Long Grain / Premium',
+                'image' => null,
                 'status' => true,
             ],
 
             [
-                'name' => '1121 Steam Basmati',
-                'image' => 'null',
+                'name' => 'Long Grain Non-Basmati',
+                'image' => null,
                 'status' => true,
             ],
 
             [
-                'name' => '1121 Sella Basmati',
-                'image' => 'null',
+                'name' => 'Medium Grain',
+                'image' => null,
+                'status' => true,
+            ],
+
+            [
+                'name' => 'Sella Rice',
+                'image' => null,
+                'status' => true,
+            ],
+
+            [
+                'name' => 'Steam Rice',
+                'image' => null,
                 'status' => true,
             ],
 
             [
                 'name' => 'Brown Rice',
-                'image' => 'null',
-                'status' => true,
-            ],
-
-            [
-                'name' => 'Jasmine Rice',
-                'image' => 'null',
-                'status' => true,
-            ],
-
-            [
-                'name' => 'PK-386 Rice',
-                'image' => 'null',
-                'status' => true,
-            ],
-
-            [
-                'name' => 'Sindhi Rice',
-                'image' => 'null',
-                'status' => true,
-            ],
-
-            [
-                'name' => 'White Rice',
-                'image' => 'null',
-                'status' => true,
-            ],
-
-            [
-                'name' => 'Parboiled Rice',
-                'image' => 'null',
+                'image' => null,
                 'status' => true,
             ],
 
             [
                 'name' => 'Broken Rice',
-                'image' => 'null',
+                'image' => null,
                 'status' => true,
             ],
 
             [
-                'name' => 'Organic Rice',
-                'image' => 'null',
+                'name' => 'Hybrid Rice',
+                'image' => null,
                 'status' => true,
             ],
+
+            [
+                'name' => 'Super Gold',
+                'image' => null,
+                'status' => true,
+            ],
+
+            [
+                'name' => 'Kainat Rice',
+                'image' => null,
+                'status' => true,
+            ],
+
+            [
+                'name' => 'Long Grain White Basmati',
+                'image' => null,
+                'status' => true,
+            ],
+
         ];
 
         foreach ($categories as $category) {

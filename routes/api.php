@@ -242,6 +242,12 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('permission:delete users');
 
     // --- Categories ---
+     Route::post('/rice-categories', [RiceCategoryController::class, 'store'])
+        ->middleware('permission:create categories');
+    
+    Route::put('/rice-categories/{id}', [RiceCategoryController::class, 'update'])
+        ->middleware('permission:update categories');
+    
     Route::put('/rice-categories/{id}/status', [RiceCategoryController::class, 'updateStatus'])
         ->middleware('permission:update categories');
 
@@ -373,6 +379,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::patch('/complaints/{complaint}/status', [ComplaintController::class, 'updateStatus'])
         ->middleware('permission:manage complaints');
+    
+    
 });
 
 
