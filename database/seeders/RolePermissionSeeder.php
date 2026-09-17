@@ -291,6 +291,12 @@ class RolePermissionSeeder extends Seeder
             'assign permissions',
 
             // =========================
+            // COMMISSION
+            // =========================
+
+            'manage commission',
+
+            // =========================
             // SYSTEM
             // =========================
 

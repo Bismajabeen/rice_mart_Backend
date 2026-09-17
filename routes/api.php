@@ -28,6 +28,7 @@ use App\Http\Controllers\ComplaintController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\SellerRemovalController;
 use App\Http\Controllers\StripeController;
+use App\Http\Controllers\CommissionSettingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -366,19 +367,21 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('permission:assign permissions');
 
     // --- Complaints admin view / resolution ---
-    // Per the business rule that only Super Admin responds to complaints,
-    // these two are gated to super_admin only. The controller must still
-    // separately allow a complainant to see/reply on THEIR OWN complaint
-    // via the /complaints/{complaint} and /complaints/{complaint}/messages
-    // routes above (auth:sanctum only) — a plain permission check can't
-    // express "owner OR super admin", so that check belongs in
-    // ComplaintController (e.g. abort(403) unless
-    // $complaint->user_id === auth()->id() OR auth()->user()->can('manage complaints')).
     Route::get('/complaints', [ComplaintController::class, 'index'])
         ->middleware('permission:view complaints');
 
     Route::patch('/complaints/{complaint}/status', [ComplaintController::class, 'updateStatus'])
         ->middleware('permission:manage complaints');
+    
+    // --- Commission management ---
+    Route::get('/admin/commission', [CommissionSettingController::class, 'show'])
+        ->middleware('permission:manage commission');
+
+    Route::get('/admin/commission/history', [CommissionSettingController::class, 'history'])
+        ->middleware('permission:manage commission');
+
+    Route::post('/admin/commission', [CommissionSettingController::class, 'update'])
+        ->middleware('permission:manage commission');
     
     
 });

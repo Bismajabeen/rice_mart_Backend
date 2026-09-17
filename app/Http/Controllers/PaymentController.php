@@ -196,9 +196,12 @@ class PaymentController extends Controller
         // =========================
         // COMMISSION — 5% of item price only, never delivery charge
         // =========================
+
+        $commissionPercent = \App\Models\CommissionSetting::current();
+
         foreach ($order->items as $item) {
             $lineTotal = $item->price * $item->quantity;
-            $commission = round($lineTotal * 0.05, 2);
+            $commission = round($lineTotal * ($commissionPercent / 100), 2);
 
             $item->update([
                 'commission_amount' => $commission,
