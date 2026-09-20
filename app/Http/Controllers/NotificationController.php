@@ -13,6 +13,7 @@ class NotificationController extends Controller
     public function index(Request $request)
     {
         $notifications = AppNotification::where('user_id', $request->user()->id)
+            ->whereNull('cleared_at')
             ->latest()
             ->paginate(20);
 
@@ -81,6 +82,26 @@ class NotificationController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'All notifications marked as read',
+        ]);
+    }
+
+    // =========================
+    // CLEAR ALL — hides every notification for the current user.
+    // Rows stay in the database; cleared_at is filled in.
+    // is_read is set to true so the bell badge goes to 0.
+    // =========================
+    public function clearAll(Request $request)
+    {
+        AppNotification::where('user_id', $request->user()->id)
+            ->whereNull('cleared_at')
+            ->update([
+                'cleared_at' => now(),
+                'is_read' => true,
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'All notifications cleared',
         ]);
     }
 }

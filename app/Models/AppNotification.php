@@ -16,12 +16,14 @@ class AppNotification extends Model
         'data',
         'is_read',
         'read_at',
+        'cleared_at',
     ];
 
     protected $casts = [
         'data' => 'array',
         'is_read' => 'boolean',
         'read_at' => 'datetime',
+        'cleared_at' => 'datetime',
     ];
 
     public function user()
