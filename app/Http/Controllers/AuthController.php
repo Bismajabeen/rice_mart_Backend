@@ -19,9 +19,14 @@ class AuthController extends Controller
     {
        $request->validate([
          'name' => 'required|string|max:255',
-         'email' => 'required|email',
+         'email' => ['required', 'email', 'regex:/^[A-Za-z0-9._%+\-]+@gmail\.com$/i'],
          'password' => 'required|min:6',
+       ],  [
+            'email.regex' => 'Only @gmail.com email addresses are allowed.',
         ]);
+
+        // Normalize so "Ali@Gmail.com" and "ali@gmail.com" are the same account
+        $request->merge(['email' => strtolower($request->email)]);
 
         // Check if the email is permanently banned
       if (BannedEmail::where('email', $request->email)->exists()) {
