@@ -384,6 +384,7 @@ class OrderController extends Controller
         return response()->json([
             'success' => true,
             'orders' => Order::with(['user', 'payment', 'items.product', 'items.shop'])
+                ->where('payment_status', 'paid')
                 ->whereNotIn('status', ['delivered', 'cancelled'])
                 ->latest()
                 ->get(),
@@ -402,7 +403,10 @@ class OrderController extends Controller
         return response()->json([
             'success' => true,
             'orders' => Order::with(['user', 'payment', 'items.product', 'items.shop'])
-                ->whereIn('status', ['delivered', 'cancelled'])
+            ->where(function ($q) {
+                $q->whereIn('status', ['delivered', 'cancelled'])
+                    ->orWhere('payment_status', 'rejected');
+            })
                 ->latest()
                 ->get(),
         ]);
