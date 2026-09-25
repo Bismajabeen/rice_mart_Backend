@@ -470,67 +470,19 @@ class RolePermissionSeeder extends Seeder
 
         // =========================================
         // ADMIN PERMISSIONS
-        // =========================================
-
-        $admin->syncPermissions([
-
+       // =========================================
+        // Admin's real permission set is entirely controlled by Super Admin
+       // through the Assign Permissions screen — not by this seeder. We only
+      // seed the bare minimum ('view admin dashboard') the FIRST time this
+      // role is created, so a fresh admin can at least log in and see their
+      // dashboard. The count() === 0 guard means re-running this seeder
+      // later will NOT reset/override anything Super Admin has since
+      // configured through the panel.
+       if ($admin->permissions()->count() === 0) {
+         $admin->syncPermissions([
             'view admin dashboard',
-
-            'view all shops',
-            'update any shop',
-            'delete any shop',
-            'approve shops',
-            'reject shops',
-            'remove sellers',
-
-            'view all products',
-            'update any products',
-            'delete any products',
-
-            'view all orders',
-            'view all order details',
-
-            'update any order status',
-
-            'view all payments',
-            'manage payments',
-            'receive payments',
-
-            'view users',
-            'create users',
-            'update users',
-            'delete users',
-
-            'create sellers',
-            'view sellers',
-            'update sellers',
-
-            'send notifications',
-            'view all notifications',
-
-            'view reports',
-            'export reports',
-
-            'view feedback',
-            'reply feedback',
-
-            'view all analytics',
-
-            'search system',
-
-            'create categories',
-            'view categories',
-            'update categories',
-            'delete categories',
-
-            'manage cities',
-
-            'manage settings',
-
-            // NOTE: 'view complaints' / 'manage complaints' intentionally NOT
-            // given to admin — per your stated rule that only the Super Admin
-            // responds to / resolves complaints.
         ]);
+        }
 
         // =========================================
         // SUPER ADMIN PERMISSIONS

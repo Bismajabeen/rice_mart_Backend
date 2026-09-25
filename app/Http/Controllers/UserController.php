@@ -138,7 +138,7 @@ class UserController extends Controller
     // =========================
     // DELETE USER
     // =========================
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $user = User::findOrFail($id);
 
@@ -156,10 +156,13 @@ class UserController extends Controller
             ], 403);
         }
 
-        if ($user->hasRole('admin')) {
+        // Only a super_admin can delete an admin. A regular admin (if ever
+        // given 'delete users' permission) still cannot delete another admin.
+
+        if ($user->hasRole('admin') && !$request->user()->hasRole('super_admin')) {
             return response()->json([
                 'success' => false,
-                'message' => 'Admin cannot be deleted',
+                'message' => 'Only a super admin can delete an admin',
             ], 403);
         }
 
