@@ -178,13 +178,15 @@ class OrderController extends Controller
                 'status' => $paymentStatus,
             ]);
 
-            // Notify admins a payment needs approval
-            NotificationService::sendToAdmins(
-                'payment_pending',
-                'New payment submitted',
-                'Order ' . $order->order_number . ' has a payment awaiting approval.',
-                ['order_id' => $order->id]
-            );
+            // Notify admins a payment needs approval skip for card
+            if ($request->payment_method !== 'card') {
+                NotificationService::sendToAdmins(
+                    'payment_pending',
+                    'New payment submitted',
+                    'Order ' . $order->order_number . ' has a payment awaiting approval.',
+                    ['order_id' => $order->id]
+                );
+            }   
 
 
             DB::commit();
