@@ -19,15 +19,17 @@ class TestImageController extends Controller
         $mimeType  = $imageFile->getMimeType(); // image/jpeg etc.
 
         // ── 3. Prompt ─────────────────────────────────────────
+        $dbCategories = \App\Models\RiceCategory::pluck('name')->implode(', ');
         $prompt = 'You are an agricultural rice quality inspector.
 Analyze the uploaded image and return ONLY valid JSON.
 Instructions:
 1. Determine whether the image contains rice grains.
 2. If it contains rice, identify the most likely rice variety.
-3. Evaluate the visible quality of the rice.
-4. Do not guess when confidence is low.
-5. Base your assessment only on what is visible in the image.
-6. Explain any uncertainty.
+3. CRITICAL: Here are our database categories: [ ' . $dbCategories . ' ]. You MUST select the most similar category from this list for the "rice_type". If none match, return "Other".
+4. Evaluate the visible quality of the rice.
+5. Do not guess when confidence is low.
+6. Base your assessment only on what is visible in the image.
+7. Explain any uncertainty.
 Return this exact JSON structure:
 {
   "is_rice": true,
@@ -59,12 +61,15 @@ Return this exact JSON structure:
                                 'type'      => 'image_url',
                                 'image_url' => [
                                     'url' => "data:{$mimeType};base64,{$imageData}",
+                                    'detail' => 'low',
                                 ],
                             ],
                         ],
                     ],
                 ],
                 'max_tokens' => 800,
+                'temperature' => 0.0,
+                'response_format' => ['type' => 'json_object'],
             ]);
 
         // ── 5. Parse Response ─────────────────────────────────

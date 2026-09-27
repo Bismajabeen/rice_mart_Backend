@@ -38,6 +38,8 @@ class AiRecommendationController extends Controller
 You are an expert rice advisor for a rice shop called "Rice Mart".
 Your job is to help customers understand different rice types and dishes.
 
+CRITICAL: For the "rice_type" field in your JSON response, you MUST output the exact "category_name" from the provided products JSON that best matches the query.
+
 When given a query about a rice type or dish, respond ONLY with a valid JSON object
 (no markdown, no extra text) with this exact structure:
 
@@ -82,6 +84,7 @@ MSG;
                     ],
                     'max_tokens'  => 1200,
                     'temperature' => 0.7,
+                    'response_format' => ['type' => 'json_object'],
                 ]);
 
             // Log full OpenAI response for debugging
