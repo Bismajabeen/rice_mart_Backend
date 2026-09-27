@@ -9,9 +9,6 @@ use Illuminate\Validation\Rule;
 
 class CityController extends Controller
 {
-    /**
-     * Get All Cities
-     */
     public function index()
     {
         $cities = City::orderBy('name', 'asc')->get();
@@ -23,9 +20,7 @@ class CityController extends Controller
         ], 200);
     }
 
-    /**
-     * Add New City
-     */
+    
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -42,9 +37,7 @@ class CityController extends Controller
         ], 201);
     }
 
-    /**
-     * Update City
-     */
+   
     public function update(Request $request, $id)
     {
         $city = City::find($id);
@@ -75,9 +68,7 @@ class CityController extends Controller
         ], 200);
     }
 
-    /**
-     * Delete City
-     */
+    
     public function destroy($id)
     {
         $city = City::find($id);
@@ -119,8 +110,6 @@ class CityController extends Controller
 
     // =========================
     // PUBLIC: CITIES + THEIR COURIER CHARGE (for checkout dropdown)
-    // No auth required — a customer needs this before/while checking out.
-    // Cities without an assigned charge are excluded since they can't be delivered to yet.
     // =========================
     public function citiesWithCharges()
     {
@@ -134,6 +123,7 @@ class CityController extends Controller
                     'name' => $city->name,
                     'code' => $city->code,
                     'delivery_charge' => (float) $city->courierCharge->charge,
+                    'extra_percent' => (float) $city->courierCharge->extra_percent,
                 ];
             });
 

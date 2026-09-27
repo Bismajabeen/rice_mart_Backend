@@ -17,7 +17,7 @@ use App\Services\NotificationService;
 class OrderController extends Controller
 {
     // =========================
-    // CHECKOUT (CUSTOMER)
+    // CHECKOUT 
     // =========================
 
     public function checkout(Request $request)
@@ -51,7 +51,9 @@ class OrderController extends Controller
                 ], 400);
             }
 
-            $deliveryChargePerShop = (float) $city->courierCharge->charge;
+            $deliveryBaseCharge = (float) $city->courierCharge->charge;
+            $deliveryExtraPercent = (float) $city->courierCharge->extra_percent;
+            $deliveryPerKgExtra = $deliveryBaseCharge * ($deliveryExtraPercent / 100);
 
             $paymentProof = null;
 
@@ -69,8 +71,7 @@ class OrderController extends Controller
             $paymentStatus = 'pending';
 
             // =========================
-            // CREATE ORDER (delivery_charge/total_price finalized below,
-            // once we know how many distinct shops are in the cart)
+            // CREATE ORDER delivery_charge
             // =========================
             $order = Order::create([
                 'user_id' => $user->id,
@@ -88,6 +89,7 @@ class OrderController extends Controller
 
             $total = 0;
             $shopIds = [];
+            $shopWeights = [];
 
             foreach ($cartItems as $item) {
 
@@ -138,6 +140,7 @@ class OrderController extends Controller
                 $total += $subtotal;
 
                 $shopIds[] = $product->shop_id;
+                $shopWeights[$product->shop_id] = ($shopWeights[$product->shop_id] ?? 0) + $item['quantity'];
 
                 OrderItem::create([
                     'order_id' => $order->id,
@@ -150,10 +153,23 @@ class OrderController extends Controller
             }
 
             // =========================
-            // DELIVERY CHARGE — one charge PER DISTINCT SHOP, not per order
+            // DELIVERY CHARGE one charge PER SHOP
             // =========================
-            $shopCount = count(array_unique($shopIds));
-            $deliveryCharge = $deliveryChargePerShop * $shopCount;
+            $deliveryCharge = 0;
+
+            foreach ($shopWeights as $shopId => $weight) {
+                $extraKg = $weight > 1 ? $weight - 1 : 0;
+                $shopCharge = $deliveryBaseCharge + ($deliveryPerKgExtra * $extraKg);
+                $deliveryCharge += $shopCharge;
+
+                \App\Models\OrderShopCharge::create([
+                    'order_id' => $order->id,
+                    'shop_id' => $shopId,
+                    'weight_kg' => $weight,
+                    'delivery_charge' => round($shopCharge, 2),
+                ]);
+            }
+            
 
             $order->update([
                 'total_price' => $total + $deliveryCharge,
@@ -161,12 +177,7 @@ class OrderController extends Controller
             ]);
 
             // =========================
-            // payment_type reflects how this payment is verified:
-            // 'manual' -> an admin reviews a screenshot/transaction ID
-            // 'stripe' -> verified automatically via Stripe's webhook
-            // Card orders get this Payment row updated in-place by
-            // StripeController::createPaymentIntent() right after this
-            // — never a second row (payments.order_id is unique).
+            // payment
             // =========================
             Payment::create([
                 'order_id' => $order->id,

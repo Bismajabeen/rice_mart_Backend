@@ -12,11 +12,10 @@ class CourierCharge extends Model
     protected $fillable = [
         'city_id',
         'charge',
+        'extra_percent',
     ];
 
-    /**
-     * Courier charge belongs to a city.
-     */
+    
     public function city()
     {
         return $this->belongsTo(City::class);

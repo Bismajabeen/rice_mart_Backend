@@ -215,17 +215,15 @@ class PaymentController extends Controller
         $order->refresh()->load('items');
 
 
-        // Delivery is charged once per distinct shop in the order (see
-        // OrderController::checkout) — same share every shop in this
-        // order gets, same math as SellerOrderController::sellerOrders().
+        // Delivery is charged once per distinct shop in the order 
 
-        $shopCount = $order->items->pluck('shop_id')->unique()->count();
-        $deliveryPerShop = $shopCount > 0 ? round($order->delivery_charge / $shopCount, 2) : 0;
+        $shopChargesById = $order->shopCharges()->get()->keyBy('shop_id');
         
         foreach ($order->items->groupBy('shop_id') as $shopId => $shopItems) {
             $gross = $shopItems->sum(fn ($i) => $i->price * $i->quantity);
             $commission = $shopItems->sum('commission_amount');
             $net = $shopItems->sum('net_amount');
+            $deliveryForShop = $shopChargesById->get($shopId)?->delivery_charge ?? 0;
 
             SellerPayout::create([
                 'order_id' => $order->id,
@@ -233,8 +231,8 @@ class PaymentController extends Controller
                 'gross_amount' => $gross,
                 'commission_amount' => $commission,
                 'net_amount' => $net,
-                'delivery_charge' => $deliveryPerShop,
-                'status' => 'pending', // waiting on customer confirmation
+                'delivery_charge' => $deliveryForShop,
+                'status' => 'pending', 
             ]);
         }
 

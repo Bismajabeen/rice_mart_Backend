@@ -9,9 +9,6 @@ use Illuminate\Validation\Rule;
 
 class CourierChargeController extends Controller
 {
-    /**
-     * Get All Courier Charges
-     */
     public function index()
     {
         $charges = CourierCharge::with('city')
@@ -27,14 +24,12 @@ class CourierChargeController extends Controller
         ], 200);
     }
 
-    /**
-     * Add Courier Charge
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
             'city_id' => 'required|exists:cities,id|unique:courier_charges,city_id',
             'charge' => 'required|numeric|min:1',
+            'extra_percent' => 'nullable|numeric|min:0|max:1000',
         ]);
 
         $charge = CourierCharge::create($validated);
@@ -46,9 +41,6 @@ class CourierChargeController extends Controller
         ], 201);
     }
 
-    /**
-     * Update Courier Charge
-     */
     public function update(Request $request, $id)
     {
         $courierCharge = CourierCharge::find($id);
@@ -68,6 +60,7 @@ class CourierChargeController extends Controller
                     ->ignore($courierCharge->id),
             ],
             'charge' => 'required|numeric|min:0',
+            'extra_percent' => 'nullable|numeric|min:0|max:1000',
         ]);
 
         $courierCharge->update($validated);
@@ -79,9 +72,6 @@ class CourierChargeController extends Controller
         ], 200);
     }
 
-    /**
-     * Delete Courier Charge
-     */
     public function destroy($id)
     {
         $courierCharge = CourierCharge::find($id);
@@ -101,18 +91,17 @@ class CourierChargeController extends Controller
         ], 200);
     }
 
-    // CourierChargeController.php — new method
     public function deliverableCities()
     {
         $charges = CourierCharge::with('city')
-         ->join('cities', 'courier_charges.city_id', '=', 'cities.id')
-         ->orderBy('cities.name')
-         ->select('courier_charges.*')
-         ->get();
+            ->join('cities', 'courier_charges.city_id', '=', 'cities.id')
+            ->orderBy('cities.name')
+            ->select('courier_charges.*')
+            ->get();
 
-       return response()->json([
-         'success' => true,
-         'data' => $charges, // each item has ->city and ->charge
+        return response()->json([
+            'success' => true,
+            'data' => $charges,
         ]);
     }
 }

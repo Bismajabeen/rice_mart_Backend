@@ -43,14 +43,13 @@ class SellerOrderController extends Controller
         // Each group becomes ONE "order card" for the seller,
         // even if the customer bought several items from this shop.
         // =========================
-        $grouped = $items->groupBy('order_id')->map(function ($shopItems) {
+        $grouped = $items->groupBy('order_id')->map(function ($shopItems) use ($shop) {
             $order = $shopItems->first()->order;
 
-            // this shop's share of the delivery charge
-            $shopCount = $order->items->pluck('shop_id')->unique()->count();
-            $shopDeliveryCharge = $shopCount > 0
-                ? round($order->delivery_charge / $shopCount, 2)
-                : $order->delivery_charge;
+            // this shop's own weight-based delivery charge for this order
+            $shopDeliveryCharge = \App\Models\OrderShopCharge::where('order_id', $order->id)
+                ->where('shop_id', $shop->id)
+                ->value('delivery_charge') ?? 0;
 
             // overall status for THIS SHOP's items within the order
             $statuses = $shopItems->pluck('status');
