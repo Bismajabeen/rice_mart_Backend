@@ -8,7 +8,7 @@ use App\Models\OrderItem;
 class SellerOrderController extends Controller
 {
     // =========================
-    // SELLER ORDERS LIST (grouped by order, not by item)
+    // SELLER ORDERS LIST
     // =========================
     public function sellerOrders(Request $request)
     {
@@ -30,7 +30,7 @@ class SellerOrderController extends Controller
         ])
         ->where('shop_id', $shop->id)
 
-        // fetch only paid orders, so sellers won't see unpaid orders
+        // fetch only paid orders
         ->whereHas('order', function ($q) {
             $q->where('payment_status', 'paid');
         })
@@ -40,8 +40,6 @@ class SellerOrderController extends Controller
 
         // =========================
         // GROUP THIS SHOP'S ITEMS BY ORDER
-        // Each group becomes ONE "order card" for the seller,
-        // even if the customer bought several items from this shop.
         // =========================
         $grouped = $items->groupBy('order_id')->map(function ($shopItems) use ($shop) {
             $order = $shopItems->first()->order;
@@ -51,7 +49,7 @@ class SellerOrderController extends Controller
                 ->where('shop_id', $shop->id)
                 ->value('delivery_charge') ?? 0;
 
-            // overall status for THIS SHOP's items within the order
+            // overall status for this shop's items within the order
             $statuses = $shopItems->pluck('status');
 
             if ($statuses->every(fn ($s) => $s === 'delivered')) {
@@ -86,8 +84,7 @@ class SellerOrderController extends Controller
     }
 
     // =========================
-    // SELLER UPDATE ORDER STATUS (updates ALL of this shop's items
-    // in the order at once, keyed by order_id instead of item id)
+    // SELLER UPDATE ORDER STATUS 
     // =========================
     public function updateStatus(Request $request, $orderId)
     {
@@ -148,8 +145,7 @@ class SellerOrderController extends Controller
         }
 
         // =========================
-        // SYNC MAIN ORDER STATUS (across ALL shops in the order —
-        // same logic as before, untouched)
+        // SYNC MAIN ORDER STATUS 
         // =========================
         $statuses = $order->items()->pluck('status');
 

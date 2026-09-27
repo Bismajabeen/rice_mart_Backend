@@ -9,12 +9,10 @@ class PaymentSettingController extends Controller
 {
     // =========================
     // GET PAYMENT SETTINGS
-    // (used by the checkout screen to show EasyPaisa/JazzCash numbers)
     // =========================
     public function paymentSettings()
     {
-        // Single-row settings table. Create a default (empty) row the
-        // first time this is called if the admin hasn't set it up yet.
+        
         $settings = PaymentSetting::first();
 
         if (!$settings) {

@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Storage;
 class PayoutController extends Controller
 {
     // =========================
-    // ADMIN — LIST ALL PAYOUTS
+    // ADMIN LIST ALL PAYOUTS
     // =========================
     public function index(Request $request)
     {
@@ -34,7 +34,7 @@ class PayoutController extends Controller
     }
 
     // =========================
-    // ADMIN — MARK A PAYOUT AS PAID
+    // ADMIN MARK A PAYOUT AS PAID
     // =========================
     public function pay(Request $request, $id)
     {
@@ -56,7 +56,7 @@ class PayoutController extends Controller
             'transaction_id' => 'required|string|max:255',
             'proof' => 'required|image|max:2048',
         ]);
-        // Block payout if the seller hasn't added the account for the chosen method
+        // Block payout if the seller hasn't added the account
         $shop = $payout->shop;
 
         $sellerHasEasypaisa = !empty($shop->payout_easypaisa_number);
@@ -88,7 +88,7 @@ class PayoutController extends Controller
         ]);
 
         // =========================
-        // NOTIFY SELLER — payout sent
+        // NOTIFY SELLER payout sent
         // =========================
         $shop = $payout->shop;
 
@@ -110,7 +110,7 @@ class PayoutController extends Controller
     }
 
     // =========================
-    // SELLER — LIST THEIR OWN PAYOUTS
+    // SELLER LIST THEIR OWN PAYOUTS
    // =========================
     public function sellerPayouts(Request $request)
     {

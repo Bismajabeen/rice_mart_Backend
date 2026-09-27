@@ -21,8 +21,7 @@ class RiceCategoryController extends Controller
     }
 
     // =========================
-    // FETCH ALL CATEGORIES
-    // ADMIN PURPOSE
+    // FETCH ALL CATEGORIES FOR ADMIN DASHBOARD
     // =========================
     public function allCategories()
     {
@@ -61,7 +60,7 @@ class RiceCategoryController extends Controller
     }
 
     // =========================
-    // UPDATE CATEGORY (name/image)
+    // UPDATE CATEGORY FOR ADMIN DASHBOARD
     // =========================
     public function update(Request $request, $id)
     {

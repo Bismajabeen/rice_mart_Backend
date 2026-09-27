@@ -16,7 +16,6 @@ class StripeController extends Controller
 {
     // =========================
     // CREATE PAYMENT INTENT
-    // Called from the Flutter checkout screen when the user picks "Card"
     // =========================
     public function createPaymentIntent(Request $request)
     {
@@ -25,8 +24,7 @@ class StripeController extends Controller
         ]);
 
         // =========================
-        // OWNERSHIP CHECK — only the customer who placed this order
-        // can create a payment intent for it
+        // OWNERSHIP CHECK
         // =========================
         $order = Order::with('items', 'payment')
             ->where('id', $request->order_id)
@@ -41,7 +39,7 @@ class StripeController extends Controller
         }
 
         // =========================
-        // ALREADY PAID — don't let a paid order be charged again
+        // ALREADY PAID 
         // =========================
         if ($order->payment_status === 'paid') {
             return response()->json([
@@ -51,11 +49,7 @@ class StripeController extends Controller
         }
 
         // =========================
-        // GUARD — this endpoint is only for orders placed with the
-        // "card" payment method. Without this check, any authenticated
-        // user could call this on their own EasyPaisa/JazzCash order and
-        // silently overwrite that Payment row's type/transaction_id,
-        // disconnecting it from the manual screenshot-review flow.
+        // GUARD endpoint is only for orders placed with the "card" payment method
         // =========================
         $payment = $order->payment;
 
@@ -68,14 +62,6 @@ class StripeController extends Controller
 
         Stripe::setApiKey(config('services.stripe.secret'));
 
-        // =========================
-        // IDEMPOTENCY — if a usable PaymentIntent already exists for this
-        // order (e.g. the user double-tapped "Place Order" or retried
-        // after a dropped connection), reuse it instead of creating a
-        // second one. Creating a second intent here would overwrite
-        // transaction_id and orphan whichever intent the webhook ends up
-        // confirming payment for.
-        // =========================
         if ($payment->transaction_id) {
             try {
                 $existing = PaymentIntent::retrieve($payment->transaction_id);
@@ -92,35 +78,28 @@ class StripeController extends Controller
                 }
 
                 if (in_array($existing->status, ['succeeded', 'processing'])) {
-                    // Stripe already has this charge in flight/succeeded —
-                    // don't create a second one. The webhook will (or
-                    // already did) mark the order paid.
+                     
                     return response()->json([
                         'success' => false,
                         'message' => 'Payment already submitted for this order — confirming now, please check your orders shortly.',
                     ], 409);
                 }
 
-                // Any other status (canceled, etc.) — safe to fall through
-                // and create a fresh intent below.
             } catch (\Exception $e) {
-                // Couldn't retrieve the old intent (e.g. it no longer
-                // exists) — fall through and create a new one.
+                
             }
         }
 
         $intent = PaymentIntent::create([
-            'amount' => (int) round($order->total_price * 100), // paisa/cents
-            'currency' => 'pkr', // confirm your Stripe account supports PKR settlement — see note below
+            'amount' => (int) round($order->total_price * 100), 
+            'currency' => 'pkr', 
             'metadata' => [
                 'order_id' => $order->id,
             ],
         ]);
 
         // =========================
-        // UPDATE THE EXISTING PAYMENT ROW (created during checkout())
-        // rather than inserting a second one for the same order — an
-        // order should only ever have one Payment row.
+        // UPDATE THE EXISTING PAYMENT ROW 
         // =========================
         $payment->update([
             'payment_type' => 'stripe',
@@ -137,7 +116,7 @@ class StripeController extends Controller
 
     // =========================
     // STRIPE WEBHOOK
-    // Stripe calls this directly — no auth token, verified via signature
+    // Stripe calls this directly no auth token, verified via signature
     // =========================
     public function webhook(Request $request)
     {
@@ -183,13 +162,7 @@ class StripeController extends Controller
                         . $intent->id . ': ' . $e->getMessage()
                     );
 
-                    // =========================
-                    // Stripe has already charged the customer, but we
-                    // couldn't fulfil the order (e.g. stock ran out
-                    // between checkout and payment). Refund automatically
-                    // rather than leaving the order stuck in limbo with
-                    // no way for the customer or admin to resolve it.
-                    // =========================
+    
                     try {
                         Refund::create(['payment_intent' => $intent->id]);
 
@@ -206,19 +179,8 @@ class StripeController extends Controller
                             'Stripe webhook: refund also failed for intent '
                             . $intent->id . ': ' . $refundException->getMessage()
                         );
-                        // At this point manual intervention is required —
-                        // the log line above is what an admin needs to act on.
+                       
                     }
-
-                    // =========================
-                    // Return 200 regardless of outcome above. We've fully
-                    // handled this event (either fulfilled, or rejected +
-                    // refunded/logged) inside our own try/catch. Returning
-                    // a 500 here would make Stripe retry the same webhook,
-                    // which would re-run stock deduction for whichever
-                    // items succeeded before the failure — compounding
-                    // the problem instead of fixing it.
-                    // =========================
                     return response()->json(['success' => true]);
                 }
             }

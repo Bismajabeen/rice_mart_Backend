@@ -71,7 +71,7 @@ class OrderController extends Controller
             $paymentStatus = 'pending';
 
             // =========================
-            // CREATE ORDER delivery_charge
+            // CREATE ORDER 
             // =========================
             $order = Order::create([
                 'user_id' => $user->id,
@@ -189,7 +189,7 @@ class OrderController extends Controller
                 'status' => $paymentStatus,
             ]);
 
-            // Notify admins a payment needs approval skip for card
+            
             if ($request->payment_method !== 'card') {
                 NotificationService::sendToAdmins(
                     'payment_pending',
@@ -219,12 +219,8 @@ class OrderController extends Controller
     }
 
     // =========================
-    // CUSTOMER — CANCEL AN UNPAID "CARD" ORDER
-   // Called by the Flutter app if the order was created but the Stripe
-   // payment-intent step (or the payment sheet) then failed — so the
-   // customer can retry with a different payment method without ending
-  // up with two orders for the same cart.
-  // =========================
+    // CUSTOMER 
+    // =========================
     public function cancelUnpaidCardOrder(Request $request, $id)
     {
         $order = Order::with('payment', 'items')
@@ -241,10 +237,7 @@ class OrderController extends Controller
 
         $payment = $order->payment;
 
-        // Only allow deleting orders exactly where checkout() left them:
-        // card method, nothing paid, no Stripe transaction recorded yet.
-        // Guards against cancelling an order that already has a real
-        // payment attached.
+       
 
         if (!$payment ||$payment->payment_method !== 'card' ||$payment->status === 'paid') {
             return response()->json([
@@ -257,8 +250,6 @@ class OrderController extends Controller
 
         try {
             // Stock is only decremented once payment succeeds
-            // (see PaymentController::markPaymentSuccessful), so there's
-            // nothing to restore here.
             OrderItem::where('order_id', $order->id)->delete();
             $payment->delete();
             $order->delete();
@@ -365,9 +356,6 @@ class OrderController extends Controller
 
         $order->update(['status' => 'cancelled']);
 
-        // Customer-initiated cancellation — email + notify them a
-        // confirmation too, since this path doesn't go through
-        // syncOrderStatus().
         Mail::to($order->user->email)->send(new OrderStatusUpdated($order));
 
         NotificationService::send(
@@ -494,7 +482,7 @@ class OrderController extends Controller
 
         $item->update(['customer_confirmed_at' => now()]);
 
-        // If every item from this shop, in this order, is now confirmed,
+        // If every item from this shop in this order is now confirmed,
         // the payout for that shop becomes eligible for admin to pay out.
         $stillUnconfirmed = OrderItem::where('order_id', $item->order_id)
             ->where('shop_id', $item->shop_id)
@@ -508,7 +496,7 @@ class OrderController extends Controller
                 ->update(['status' => 'ready']);
 
             // =========================
-            // NOTIFY ADMINS — payout ready to release
+            // NOTIFY ADMINS  payout ready to release
             // =========================
             if ($updated) {
                 $payout = SellerPayout::where('order_id', $item->order_id)
@@ -536,7 +524,7 @@ class OrderController extends Controller
     // =========================
     private function syncOrderStatus(Order $order): void
     {
-        $oldStatus = $order->status; // capture before recalculating
+        $oldStatus = $order->status; 
 
         $statuses = $order->items()->pluck('status');
 
@@ -557,9 +545,7 @@ class OrderController extends Controller
         // =========================
         // EMAIL + NOTIFY ON STATUS CHANGE
         // =========================
-        // Only fire if the status actually changed, and skip 'pending'
-        // (no need to email/notify the buyer that their own just-placed
-        // order is pending).
+       
         if ($order->status !== $oldStatus && $order->status !== 'pending') {
 
             Mail::to($order->user->email)->send(new OrderStatusUpdated($order));
@@ -593,7 +579,7 @@ class OrderController extends Controller
                     ['order_id' => $order->id]
                 );
 
-                // Admins need to know so they can release payment to the seller(s)
+                // Admins need to know so they can release payment to the seller
                 NotificationService::sendToAdmins(
                     'payment_release',
                     'Release payment to seller',
@@ -645,8 +631,6 @@ class OrderController extends Controller
         }
      }
 
-     // Same payout-ready logic as before, just no longer needs the
-     // "stillUnconfirmed" check since we just confirmed all of them.
      $updated = SellerPayout::where('order_id', $orderId)
         ->where('shop_id', $shopId)
         ->where('status', 'pending')

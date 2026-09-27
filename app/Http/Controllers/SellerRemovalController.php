@@ -37,15 +37,15 @@ class SellerRemovalController extends Controller
 
         DB::transaction(function () use ($request, $shop, $user, $permanentlyBan) {
 
-            // 1. Mark shop removed (hidden from customers)
+            // Mark shop removed 
             $shop->update([
                 'status' => 'removed',
             ]);
 
-            // 2. Deactivate all products under this shop (hidden from customers)
+            // Deactivate all products under this shop 
             Product::where('shop_id', $shop->id)->update(['is_active' => false]);
 
-            // 3. Revoke seller role, deactivate account (soft — not deleted)
+            // Revoke seller role deactivate account
             $user->syncRoles(['customer']);
             $user->update([
                 'account_status' => 'removed',
@@ -53,10 +53,10 @@ class SellerRemovalController extends Controller
                 'removed_at' => now(),
             ]);
 
-            // 4. Kill all active sessions/tokens immediately
+            // Kill all active sessions/tokens immediately
             $user->tokens()->delete();
 
-            // 5. Optional permanent ban
+            // Optional permanent ban
             if ($permanentlyBan) {
                 BannedEmail::updateOrCreate(
                     ['email' => $user->email],
@@ -64,7 +64,7 @@ class SellerRemovalController extends Controller
                 );
             }
 
-            // 6. Audit trail
+            // Audit trail
             SellerRemoval::create([
                 'shop_id' => $shop->id,
                 'user_id' => $user->id,
@@ -74,14 +74,13 @@ class SellerRemovalController extends Controller
             ]);
         });
 
-        // 7. Notify the seller by email (outside the transaction is fine here)
+        // Notify the seller by email
         try {
             Mail::to($user->email)->send(
                 new SellerRemovedMail($user->name, $shop->shop_name, $request->reason)
             );
         } catch (\Throwable $e) {
-            // Don't fail the whole request if email sending has an issue —
-            // the removal itself already succeeded.
+            
         }
 
         return response()->json([
@@ -91,7 +90,7 @@ class SellerRemovalController extends Controller
     }
 
     // =========================
-    // REMOVED SHOPS (for record-keeping tab)
+    // REMOVED SHOPS 
     // =========================
     public function removedShops()
     {

@@ -71,19 +71,19 @@ Route::get('/delivery-charges', [CourierChargeController::class, 'deliverableCit
 
 Route::get('/approved-shops', [ShopController::class, 'approvedShops']);
 
-// Public product recommendation endpoint — intentionally no auth
+// Public product recommendation endpoint
 Route::post('/ai-recommendation', [AiRecommendationController::class, 'recommend']);
 
-// Stripe calls this directly — must stay outside auth:sanctum
+// Stripe calls this directly  must stay outside auth:sanctum
 Route::post('/stripe/webhook', [StripeController::class, 'webhook']);
 
-// Test/dev image upload helper — kept exactly as in the original file
+// Test/dev image upload helper kept exactly as in the original file
 // (no auth middleware on this one, same as before)
 Route::post('/test-image', [TestImageController::class, 'upload']);
 
 
 // =========================================================================
-// ANY LOGGED-IN USER (auth:sanctum only — no specific permission)
+// ANY LOGGED-IN USER (auth:sanctum only no specific permission)
 // =========================================================================
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -109,17 +109,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // =========================
     // SHOP REVIEWS
-    // Any customer/seller can submit a review (controller enforces the
-    // "must be the buyer on a delivered order" rule). Reviews are then
-    // visible to any authenticated user — customer, seller, admin, or
-    // super_admin — since prospective buyers need to see them too.
     // =========================
     Route::post('/shop-review', [ShopReviewController::class, 'store']);
     Route::get('/shops/{shopId}/reviews', [ShopReviewController::class, 'shopReviews']);
 
-    // Complaints — filing + viewing your own thread is open to any user.
-    // Controllers must still scope /complaints/my and /complaints/{id} to
-    // records the current user owns (see SUPER ADMIN section note below).
+    // Complaints
     Route::middleware('permission:file complaints')->group(function () {
         Route::post('/complaints', [ComplaintController::class, 'store']);
     });
@@ -129,13 +123,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/settings/emergency-contact', [SettingController::class, 'emergencyContact']);
 
-    // Chat — controller scopes conversations to the logged-in user
+    // Chat controller scopes conversations to the logged-in user
     Route::get('/conversations', [ChatController::class, 'index']);
     Route::post('/conversations/start', [ChatController::class, 'start']);
     Route::get('/conversations/{id}/messages', [ChatController::class, 'messages']);
     Route::post('/conversations/{id}/messages', [ChatController::class, 'send']);
 
-    // Stripe — customer starting a card payment
+    // Stripe customer starting a card payment
     Route::post('/stripe/create-intent', [StripeController::class, 'createPaymentIntent']);
 });
 
@@ -146,7 +140,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 Route::middleware('auth:sanctum')->group(function () {
 
-    // Applying to become a seller (creates a shop pending approval)
+    // Applying to become a seller
     Route::post('/shops', [ShopController::class, 'store'])
         ->middleware('permission:create shop');
 
@@ -180,7 +174,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 Route::middleware('auth:sanctum')->group(function () {
 
-    // Shop management (own shop only)
+    // Shop management own shop only
     Route::get('/my-shop', [ShopController::class, 'myShop']);
 
     Route::put('/shops/{id}', [ShopController::class, 'update'])
@@ -227,7 +221,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/admin/create-seller', [ShopController::class, 'adminCreateSeller'])
         ->middleware('permission:create sellers');
 
-    // --- Users ---
+    // --- Users ----
     Route::get('/users', [UserController::class, 'index'])
         ->middleware('permission:view users');
 

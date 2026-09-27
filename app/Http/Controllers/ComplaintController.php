@@ -9,7 +9,7 @@ use App\Services\NotificationService;
 
 class ComplaintController extends Controller
 {
-    // POST /api/complaints — customer or seller creates a complaint
+    // POST /api/complaints Customer or seller creates a complaint
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -42,9 +42,7 @@ class ComplaintController extends Controller
         ]);
 
         // =========================
-        // NOTIFY ADMINS — new complaint filed
-        // recipient_role: 'admin' tells the client which detail screen
-        // to open, independent of how the client stores its own role.
+        // NOTIFY ADMINS new complaint filed
         // =========================
         NotificationService::sendToAdmins(
             'complaint',
@@ -56,18 +54,18 @@ class ComplaintController extends Controller
         return response()->json($complaint->load('messages'), 201);
     }
 
-    // GET /api/complaints/my — customer/seller's own complaints
+    // GET /api/complaints/my customer/seller's own complaints
     public function myComplaints(Request $request): JsonResponse
     {
         $user = $request->user();
-        $this->resolveComplainantRole($user); // just to enforce permission check
+        $this->resolveComplainantRole($user); 
 
         $complaints = Complaint::where('user_id', $user->id)->latest()->get();
 
         return response()->json($complaints);
     }
 
-    // GET /api/complaints — Super Admin only
+    // GET /api/complaints Super Admin only
     public function index(Request $request): JsonResponse
     {
         abort_unless($request->user()->can('view complaints'), 403, 'Forbidden');
@@ -81,7 +79,7 @@ class ComplaintController extends Controller
         return response()->json($query->get());
     }
 
-    // GET /api/complaints/{id} — owner, or Super Admin
+    // GET /api/complaints/{id}   Super Admin or Admin
     public function show(Request $request, Complaint $complaint): JsonResponse
     {
         $user = $request->user();
@@ -93,7 +91,7 @@ class ComplaintController extends Controller
         return response()->json($complaint->load('user:id,name,email', 'messages.sender:id,name'));
     }
 
-    // POST /api/complaints/{id}/messages — owner replies, or Super Admin replies
+    // POST /api/complaints/{id}/messages  owner replies, or Super Admin replies
     public function addMessage(Request $request, Complaint $complaint): JsonResponse
     {
         $user = $request->user();
@@ -125,11 +123,7 @@ class ComplaintController extends Controller
         }
 
         // =========================
-        // NOTIFY THE OTHER SIDE
-        // Complainant replied -> notify admins (recipient_role: 'admin').
-        // Admin replied -> notify the complaint owner (recipient_role:
-        // the owner's own role — 'customer' or 'seller' — taken from
-        // $complaint->role, so it's never guessed on the client).
+        // NOTIFY THE SUPER ADMIN OR ADMIN
         // =========================
         if ($isSuperAdmin) {
             NotificationService::send(
@@ -163,9 +157,7 @@ class ComplaintController extends Controller
         $complaint->update(['status' => $validated['status']]);
 
         // =========================
-        // NOTIFY COMPLAINT OWNER — status changed (e.g. resolved)
-        // recipient_role taken from $complaint->role (the owner's role),
-        // not from any client-side guess.
+        // NOTIFY COMPLAINT OWNER status changed 
         // =========================
         NotificationService::send(
             $complaint->user,
@@ -178,7 +170,7 @@ class ComplaintController extends Controller
         return response()->json($complaint);
     }
 
-    // Only 'view customer dashboard' or 'view seller dashboard' can file/own a complaint
+    // Only 'view customer dashboard' or 'view seller dashboard' can file a complaint
     private function resolveComplainantRole($user): string
     {
         if ($user->can('view seller dashboard')) {

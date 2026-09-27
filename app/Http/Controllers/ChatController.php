@@ -13,20 +13,13 @@ use App\Services\NotificationService;
 class ChatController extends Controller
 {
     // =====================================================
-    // GET /api/conversations
-    // Returns all conversations for the authenticated user.
-    // Works for both buyers (lists their chats) and sellers
-    // (lists chats for their shop).
+    // GET conversations
     // =====================================================
     public function index(Request $request)
     {
         $user = Auth::user();
 
-        // IMPORTANT: don't decide buyer/seller purely by "does a shop
-        // row exist for this user_id" — a leftover/rejected/deleted
-        // shop row can wrongly flip a real customer into the seller
-        // branch and silently return an empty list.
-        // Use the user's actual role instead.
+        
         $isSeller = method_exists($user, 'hasRole') ? $user->hasRole('seller') : false;
         $shop = $isSeller ? Shop::where('user_id', $user->id)->first() : null;
 
@@ -75,16 +68,14 @@ class ChatController extends Controller
     }
 
     // =====================================================
-    // GET /api/conversations/{id}/messages
-    // Returns all messages in a conversation.
-    // Also marks messages from the other party as read.
+    // GET conversationsid messages
     // =====================================================
     public function messages(Request $request, $conversationId)
     {
         $user = Auth::user();
         $conversation = Conversation::findOrFail($conversationId);
 
-        // Security: only buyer or the shop's owner can read
+        
         $shop = Shop::find($conversation->shop_id);
         $isBuyer  = $conversation->buyer_id === $user->id;
         $isSeller = $shop && $shop->user_id === $user->id;
@@ -93,7 +84,7 @@ class ChatController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        // Mark messages from the other person as read
+       
         Message::where('conversation_id', $conversationId)
             ->where('sender_id', '!=', $user->id)
             ->where('is_read', false)
@@ -115,10 +106,7 @@ class ChatController extends Controller
     }
 
     // =====================================================
-    // POST /api/conversations/start
-    // Buyer opens a chat with a shop (creates conversation
-    // if it doesn't exist, idempotent).
-    // Body: { shop_id }
+    // Buyer opens a chat with a shop (creates conversation if it doesn't exist)
     // =====================================================
     public function start(Request $request)
     {
@@ -138,9 +126,7 @@ class ChatController extends Controller
     }
 
     // =====================================================
-    // POST /api/conversations/{id}/messages
-    // Send a message in a conversation.
-    // Body: { body: "Hello" }
+    // Send a message in a conversation
     // =====================================================
     public function send(Request $request, $conversationId)
     {
@@ -169,9 +155,7 @@ class ChatController extends Controller
         $conversation->update(['last_message_at' => now()]);
 
         // =========================
-        // NOTIFY THE OTHER PARTY — new message
-        // (buyer sent it -> notify the shop owner; seller sent it ->
-        // notify the buyer)
+        // NOTIFY THE SELLER new message
         // =========================
         $recipient = $isBuyer
             ? ($shop ? $shop->user : null)

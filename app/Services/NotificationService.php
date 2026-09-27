@@ -12,7 +12,7 @@ class NotificationService
     // =========================
     public static function send(?User $user, string $type, string $title, string $body = '', array $data = []): ?AppNotification
     {
-        // Defensive: some relations (shop->user, etc.) can be null in edge cases.
+        
         if (!$user) {
             return null;
         }
@@ -29,7 +29,6 @@ class NotificationService
 
     // =========================
     // SEND TO EVERY USER HOLDING ANY OF THE GIVEN ROLES
-    // (uses Spatie's HasRoles::role() scope, already on your User model)
     // =========================
     public static function sendToRoles(array $roles, string $type, string $title, string $body = '', array $data = []): void
     {

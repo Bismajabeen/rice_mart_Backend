@@ -1,5 +1,4 @@
 <?php
-// app/Mail/OrderStatusUpdated.php
 
 namespace App\Mail;
 

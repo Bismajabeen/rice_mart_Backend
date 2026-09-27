@@ -128,7 +128,7 @@ class PaymentController extends Controller
                 ]);
 
                 // =========================
-                // NOTIFY BUYER — payment rejected
+                // NOTIFY BUYER payment rejected
                 // =========================
                 NotificationService::send(
                     $order->user,
@@ -159,17 +159,14 @@ class PaymentController extends Controller
     }
 
     // =========================
-    // SHARED "MARK PAID" LOGIC
-    // Used by both the admin manual-approval path above (EasyPaisa/
-    // JazzCash) and the Stripe webhook (card payments, auto-verified).
-    // $verifiedBy is null for Stripe since no human reviewed it.
+    // MARK PAID
     // =========================
     private function markPaymentSuccessful(Payment $payment, ?int $verifiedBy = null)
     {
         $order = $payment->order;
 
         if (in_array($payment->status, ['paid', 'rejected'])) {
-            return; // already processed, don't double-run
+            return; 
         }
 
         // =========================
@@ -194,7 +191,7 @@ class PaymentController extends Controller
         }
 
         // =========================
-        // COMMISSION — 5% of item price only, never delivery charge
+        // COMMISSION 
         // =========================
 
         $commissionPercent = \App\Models\CommissionSetting::current();
@@ -214,8 +211,6 @@ class PaymentController extends Controller
         // =========================
         $order->refresh()->load('items');
 
-
-        // Delivery is charged once per distinct shop in the order 
 
         $shopChargesById = $order->shopCharges()->get()->keyBy('shop_id');
         
@@ -255,10 +250,7 @@ class PaymentController extends Controller
         ]);
 
         // =========================
-        // NOTIFY SELLER(S) — new order ready to prepare, and
-        // payment verified (an order can contain items from
-        // multiple shops, so notify every distinct shop owner
-        // involved, once each)
+        // NOTIFY SELLER
         // =========================
         $shopIds = $order->items->pluck('shop_id')->unique();
 
@@ -300,7 +292,7 @@ class PaymentController extends Controller
     }
 
     // =========================
-    // PUBLIC WRAPPER — called by StripeController's webhook handler,
+    // PUBLIC WRAPPER called by StripeController's webhook handler,
     // since markPaymentSuccessful() itself is private to this class.
     // =========================
     public function markPaymentSuccessfulPublic(Payment $payment)

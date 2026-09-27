@@ -12,7 +12,7 @@ use App\Mail\DeleteAccountOtpMail;
 
 class ProfileController extends Controller
 {
-    // ── GET /api/me ──────────────────────────────────────────
+    // me 
     public function me(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -35,12 +35,11 @@ class ProfileController extends Controller
         ]);
     }
 
-    // ── PUT /api/update-profile ───────────────────────────────
+    // update profile 
     public function update(Request $request): JsonResponse
     {
         $user = $request->user();
 
-        // ── Inline validation ────────────────────────────────
         $validator = Validator::make($request->all(), [
             'name'     => ['required', 'string', 'max:255'],
             'email'    => [
@@ -62,19 +61,18 @@ class ProfileController extends Controller
             ], 422);
         }
 
-        // ── Always update name ───────────────────────────────
+        //  Always update name
         $user->name = $request->name;
 
-        // ── Update email only if NOT verified ────────────────
+        // Update email only if NOT verified
         if ($request->filled('email') && !$user->is_verified) {
             $user->email = $request->email;
         }
 
-        // ── Update password if provided ──────────────────────
+        // Update password if provided 
         if ($request->filled('password')) {
             $user->password = Hash::make($request->password);
 
-            // Revoke all other tokens
             $user->tokens()->where(
                 'id', '!=', $request->user()->currentAccessToken()->id
             )->delete();
@@ -102,62 +100,60 @@ class ProfileController extends Controller
         ]);
     }
 
-// ── POST /api/delete-account/request ─────────────────────
-public function requestDeletion(Request $request): JsonResponse
-{
-    $user = $request->user();
+    // delete account request
+    public function requestDeletion(Request $request): JsonResponse
+    {
+        $user = $request->user();
 
-    $otp = random_int(100000, 999999);
+        $otp = random_int(100000, 999999);
 
-    $user->update([
-        'otp'            => $otp,
-        'otp_expires_at' => now()->addMinutes(10),
-    ]);
+        $user->update([
+            'otp'            => $otp,
+            'otp_expires_at' => now()->addMinutes(10),
+        ]);
 
-    Mail::to($user->email)->send(new DeleteAccountOtpMail($otp, $user->name));
+        Mail::to($user->email)->send(new DeleteAccountOtpMail($otp, $user->name));
 
-    return response()->json([
-        'message' => 'A verification OTP has been sent to your email.',
-    ]);
-}
-
-// ── POST /api/delete-account/confirm ─────────────────────
-public function confirmDeletion(Request $request): JsonResponse
-{
-    $validator = Validator::make($request->all(), [
-        'otp' => ['required'],
-    ], [
-        'otp.required' => 'OTP is required.',
-    ]);
-
-    if ($validator->fails()) {
         return response()->json([
-            'message' => $validator->errors()->first(),
-        ], 422);
+            'message' => 'A verification OTP has been sent to your email.',
+        ]);
     }
 
-    $user = $request->user();
+    // delete account confirm
+    public function confirmDeletion(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'otp' => ['required'],
+        ], [
+            'otp.required' => 'OTP is required.',
+        ]);
 
-    if ($user->otp != $request->otp) {
+        if ($validator->fails()) {
+         return response()->json([
+                'message' => $validator->errors()->first(),
+            ], 422);
+        }
+
+        $user = $request->user();
+
+        if ($user->otp != $request->otp) {
+            return response()->json([
+             'message' => 'Invalid OTP.',
+            ], 422);
+        }
+
+        if (now()->greaterThan($user->otp_expires_at)) {
+            return response()->json([
+                'message' => 'OTP expired. Please request a new one.',
+            ], 422);
+        }
+    
+        $user->tokens()->delete();
+
+        $user->delete();
+
         return response()->json([
-            'message' => 'Invalid OTP.',
-        ], 422);
+            'message' => 'Account deleted successfully.',
+        ]);
     }
-
-    if (now()->greaterThan($user->otp_expires_at)) {
-        return response()->json([
-            'message' => 'OTP expired. Please request a new one.',
-        ], 422);
-    }
-
-    // Revoke all tokens first
-    $user->tokens()->delete();
-
-    // Hard delete the account
-    $user->delete();
-
-    return response()->json([
-        'message' => 'Account deleted successfully.',
-    ]);
-}
 }

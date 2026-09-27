@@ -12,7 +12,6 @@ class ProductController extends Controller
 {
     // =========================
     // LOW STOCK THRESHOLD
-    // (isse badal ke apni marzi ka number rakh sakti ho)
     // =========================
     const LOW_STOCK_THRESHOLD = 5;
 
@@ -30,7 +29,7 @@ class ProductController extends Controller
             'image' => 'required|image|mimes:jpg,jpeg,png,webp|max:4096',
         ]);
 
-        // ✅ Ownership check (shop must belong to seller)
+        //  Ownership check
         $shop = Shop::where('id', $request->shop_id)
             ->where('user_id', auth()->id())
             ->where('is_approved', 1)
@@ -43,7 +42,7 @@ class ProductController extends Controller
             ], 403);
         }
 
-        // ✅ Category check
+        // Category check
         $category = RiceCategory::where('id', $request->rice_category_id)
             ->where('status', true)
             ->first();
@@ -53,8 +52,6 @@ class ProductController extends Controller
                 'message' => 'Invalid or inactive category'
             ], 400);
         }
-
-        // ✅ Handle image upload (stored on disk, path saved in DB)
 
         if ($request->hasFile('image')) {
             $imagePath = $request->file('image')->store('products', 'public');
@@ -71,7 +68,7 @@ class ProductController extends Controller
         ]);
 
         // =========================
-        // NOTIFY SELLER — new product already low on stock
+        // NOTIFY SELLER  new product already low on stock
         // =========================
         if ($product->stock <= self::LOW_STOCK_THRESHOLD) {
             NotificationService::send(
@@ -134,7 +131,7 @@ class ProductController extends Controller
             'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
         ]);
 
-        // ✅ Ownership check through shop
+        // Ownership check through shop
         $product = Product::with('shop.user')
             ->where('id', $id)
             ->whereHas('shop', function ($query) {
@@ -150,8 +147,7 @@ class ProductController extends Controller
             ], 403);
         }
 
-        // Track whether we're crossing INTO low stock (so we don't spam a
-        // notification every single time it's edited while already low)
+        // Track whether we're crossing INTO low stock
         $wasAboveThreshold = $product->stock > self::LOW_STOCK_THRESHOLD;
 
         $updateData = [
@@ -159,7 +155,7 @@ class ProductController extends Controller
             'stock' => $request->stock,
         ];
 
-        // ✅ Replace image only if a new one is uploaded
+        // Replace image only if a new one is uploaded
         if ($request->hasFile('image')) {
             // delete old image if exists
             if ($product->image && \Illuminate\Support\Facades\Storage::disk('public')->exists($product->image)) {
@@ -171,7 +167,7 @@ class ProductController extends Controller
         $product->update($updateData);
 
         // =========================
-        // NOTIFY SELLER — stock just dropped to/below threshold
+        // NOTIFY SELLER  stock just dropped to/below threshold
         // =========================
         if ($wasAboveThreshold && $product->stock <= self::LOW_STOCK_THRESHOLD) {
             NotificationService::send(
@@ -195,7 +191,7 @@ class ProductController extends Controller
     // =========================
     public function delete($id)
     {
-        // ✅ Ownership check through shop
+        // Ownership check through shop
         $product = Product::where('id', $id)
          ->whereHas('shop', function ($query) {
             $query->where('user_id', auth()->id());
@@ -208,7 +204,7 @@ class ProductController extends Controller
             ], 403);
         }
 
-        // ✅ Remove image file from disk too
+        // Remove image file from disk too
         if ($product->image && \Illuminate\Support\Facades\Storage::disk('public')->exists($product->image)) {
             \Illuminate\Support\Facades\Storage::disk('public')->delete($product->image);
         }

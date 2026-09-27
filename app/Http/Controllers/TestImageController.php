@@ -13,12 +13,12 @@ class TestImageController extends Controller
             $request->validate([
                 'image' => 'required|image',
             ]);
-              // ── 2. Image → Base64 ────────────────────────────────
+              // Image 
         $imageFile = $request->file('image');
         $imageData = base64_encode(file_get_contents($imageFile->getRealPath()));
-        $mimeType  = $imageFile->getMimeType(); // image/jpeg etc.
+        $mimeType  = $imageFile->getMimeType(); 
 
-        // ── 3. Prompt ─────────────────────────────────────────
+        // Prompt 
         $prompt = 'You are an agricultural rice quality inspector.
 Analyze the uploaded image and return ONLY valid JSON.
 Instructions:
@@ -42,7 +42,7 @@ Return this exact JSON structure:
   "recommendation": ""
 }';
 
-        // ── 4. OpenAI API Call ────────────────────────────────
+        // OpenAI API Call
         $response = Http::withToken(env('OPENAI_API_KEY'))
             ->timeout(60)
             ->post('https://api.openai.com/v1/chat/completions', [
@@ -67,7 +67,7 @@ Return this exact JSON structure:
                 'max_tokens' => 800,
             ]);
 
-        // ── 5. Parse Response ─────────────────────────────────
+        // Parse Response 
         if ($response->failed()) {
             return response()->json([
                 'success' => false,
@@ -77,7 +77,7 @@ Return this exact JSON structure:
 
         $content = $response->json('choices.0.message.content');
 
-        // Clean markdown fences if any
+       
         $content = preg_replace('/```json|```/', '', $content);
         $content = trim($content);
 
@@ -89,7 +89,7 @@ Return this exact JSON structure:
                 'message' => 'Failed to parse AI response',
             ], 500);
         }
- // ── 7. Return ─────────────────────────────────────────
+ // Return
         return response()->json([
             'success' => true,
             'data'    => $result,

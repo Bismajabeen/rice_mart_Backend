@@ -25,10 +25,10 @@ class AuthController extends Controller
             'email.regex' => 'Only @gmail.com email addresses are allowed.',
         ]);
 
-        // Normalize so "Ali@Gmail.com" and "ali@gmail.com" are the same account
+       
         $request->merge(['email' => strtolower($request->email)]);
 
-        // Check if the email is permanently banned
+        // akready banned
       if (BannedEmail::where('email', $request->email)->exists()) {
         return response()->json([
             'message' => 'This email is not permitted to register on Rice Mart.',
@@ -37,7 +37,7 @@ class AuthController extends Controller
 
         $existingUser = User::where('email', $request->email)->first();
 
-      // Already registered, verified, AND still active -> block
+      // Already registered verified
       if ($existingUser && $existingUser->is_verified && $existingUser->account_status !== 'removed') {
         return response()->json([
             'message' => 'Email is already in use',
@@ -48,17 +48,15 @@ class AuthController extends Controller
       $otpExpiry = now()->addMinutes(10);
 
       if ($existingUser && $existingUser->account_status === 'removed') {
-        // -----------------------------------------------------
-        // REMOVED (but not banned) seller coming back.
-        // Reactivate the SAME account/id so their old order
-        // history stays correctly linked — don't create a new user.
-        // -----------------------------------------------------
+        // ======================
+        // REMOVED not banned
+        // ======================
         $existingUser->update([
             'name' => $request->name,
             'password' => Hash::make($request->password),
             'otp' => $otp,
             'otp_expires_at' => $otpExpiry,
-            'is_verified' => false,          // force re-verification via OTP
+            'is_verified' => false,          
             'account_status' => 'active',
             'removed_reason' => null,
             'removed_at' => null,
@@ -68,7 +66,7 @@ class AuthController extends Controller
 
         $user = $existingUser;
        } elseif ($existingUser && !$existingUser->is_verified) {
-        // exists but never verified -> update details + resend otp
+        // exists but never verified update details + resend otp
         $existingUser->update([
             'name' => $request->name,
             'password' => Hash::make($request->password),
@@ -232,13 +230,13 @@ public function resetPassword(Request $request)
         'otp_expires_at' => null,
     ]);
 
-    // Optional but good practice: log out old sessions after password reset
+    
     $user->tokens()->delete();
 
     return response()->json(['message' => 'Password reset successful. Please login.']);
 }
     // =========================
-    // LOGIN (now blocks unverified users)
+    // LOGIN  blocks unverified users
     // =========================
     public function login(Request $request)
     {
@@ -279,7 +277,7 @@ public function resetPassword(Request $request)
     }
 
     // =========================
-    // GET CURRENT USER (with roles, permissions, and shop status)
+    // ME (GET CURRENT USER with roles, permissions, and shop status)
     // =========================
 
     public function me(Request $request)

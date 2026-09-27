@@ -48,7 +48,6 @@ class PermissionController extends Controller
             'permissions' => 'required|array',
         ]);
 
-        // IMPORTANT FIX
         $role = Role::findOrFail($request->role_id);
 
         $role->syncPermissions($request->permissions);

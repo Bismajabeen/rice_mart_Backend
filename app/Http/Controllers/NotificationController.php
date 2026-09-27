@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 class NotificationController extends Controller
 {
     // =========================
-    // LIST (paginated, latest first) — this is what feeds the bell dropdown/list
+    // LIST 
     // =========================
     public function index(Request $request)
     {
@@ -24,7 +24,7 @@ class NotificationController extends Controller
     }
 
     // =========================
-    // UNREAD COUNT — powers the little red badge on the bell icon
+    // UNREAD COUNT
     // =========================
     public function unreadCount(Request $request)
     {
@@ -39,7 +39,7 @@ class NotificationController extends Controller
     }
 
     // =========================
-    // MARK ONE AS READ (called when the user taps a notification)
+    // MARK ONE AS READ
     // =========================
     public function markAsRead(Request $request, $id)
     {
@@ -68,7 +68,7 @@ class NotificationController extends Controller
     }
 
     // =========================
-    // MARK ALL AS READ (the "mark as read" action at the top of the bell list)
+    // MARK ALL AS READ
     // =========================
     public function markAllAsRead(Request $request)
     {
@@ -86,9 +86,7 @@ class NotificationController extends Controller
     }
 
     // =========================
-    // CLEAR ALL — hides every notification for the current user.
-    // Rows stay in the database; cleared_at is filled in.
-    // is_read is set to true so the bell badge goes to 0.
+    // CLEAR ALL
     // =========================
     public function clearAll(Request $request)
     {

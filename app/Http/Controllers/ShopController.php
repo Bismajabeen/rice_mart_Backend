@@ -14,7 +14,7 @@ use App\Services\NotificationService;
 class ShopController extends Controller
 {
     // =========================
-    // CREATE SHOP (CUSTOMER)
+    // CREATE SHOP 
     // =========================
     public function store(Request $request)
     {
@@ -174,7 +174,7 @@ class ShopController extends Controller
             'correction_requested_at' => null,
         ]);
 
-        // FIX #2: seller/customer ko notification jana chahiye tha, missing tha
+        
         if ($shop->user) {
             NotificationService::send(
                 $shop->user,

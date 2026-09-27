@@ -56,7 +56,7 @@ class AdminController extends Controller
 
             'cnic' => $request->cnic,
 
-            // ignore image for now
+            
             'cnic_image' => null,
 
             'shop_name' => $request->shop_name,
@@ -67,7 +67,7 @@ class AdminController extends Controller
 
             'description' => $request->description,
 
-            // AUTO APPROVED
+           
             'status' => 'approved',
             'is_approved' => 1,
         ]);

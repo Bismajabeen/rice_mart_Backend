@@ -15,7 +15,7 @@ class AiRecommendationController extends Controller
         ]);
         $query = $request->input('query');
 
-        // ── 1. Fetch products ──────────────────────────────────
+        // Fetch products 
         $allProducts = Product::with(['shop', 'riceCategory'])
             ->where('stock', '>', 0)
             ->get()
@@ -37,7 +37,7 @@ class AiRecommendationController extends Controller
 
         $productsJson = json_encode($allProducts);
 
-        // ── 2. Build prompt ────────────────────────────────────
+        // Build prompt 
         $systemPrompt = <<<PROMPT
 You are an expert rice advisor for a rice shop called "Rice Mart".
 Your job is to help customers understand different rice types and dishes.
@@ -74,7 +74,7 @@ Provide detailed rice information for the query.
 Also identify which products match this rice type or dish.
 MSG;
 
-        // ── 3. Call OpenAI ─────────────────────────────────────
+        // Call OpenAI
         try {
             $response = Http::withToken(config('services.openai.key'))
                 ->timeout(30)
@@ -110,7 +110,7 @@ MSG;
                 return response()->json(['error' => 'Invalid AI response format'], 500);
             }
 
-            // ── 4. Match products ──────────────────────────────
+            //  Match products 
             $keywords = array_merge(
                 [$query],
                 $aiData['related_keywords'] ?? [],

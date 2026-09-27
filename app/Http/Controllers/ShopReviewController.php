@@ -20,7 +20,7 @@ class ShopReviewController extends Controller
 
         $item = OrderItem::with('shop.user')->findOrFail($request->order_item_id);
 
-        // security check — only the buyer on this order can review it
+        // security check only the buyer on this order can review it
         if ($item->order->user_id != auth()->id()) {
             return response()->json([
                 'message' => 'Unauthorized',
@@ -36,9 +36,6 @@ class ShopReviewController extends Controller
 
         // =========================
         // ONE REVIEW PER SHOP PER ORDER
-        // Even though this row is tied to a single order_item_id,
-        // block a second review for the same shop within the same
-        // order — no matter which item id the request is sent with.
         // =========================
 
         $alreadyReviewed = ShopReview::where('customer_id', auth()->id())
@@ -63,7 +60,7 @@ class ShopReviewController extends Controller
         ]);
 
         // =========================
-        // NOTIFY SELLER — new review on their shop
+        // NOTIFY SELLER new review on their shop
         // =========================
         if ($item->shop && $item->shop->user) {
             NotificationService::send(
@@ -76,7 +73,7 @@ class ShopReviewController extends Controller
         }
 
         // =========================
-        // NOTIFY ADMIN + SUPER ADMIN — new review submitted
+        // NOTIFY ADMIN + SUPER ADMIN  new review submitted
         // =========================
         if (method_exists(NotificationService::class, 'sendToAdmins')) {
             NotificationService::sendToAdmins(
@@ -95,10 +92,6 @@ class ShopReviewController extends Controller
 
     // =========================
     // GET REVIEWS FOR A SHOP
-    // Visible to any authenticated user — customer, seller, admin, or
-    // super_admin — so buyers can see feedback before purchasing.
-    // The route this is bound to must carry auth:sanctum, otherwise
-    // $request->user() is null here and this throws.
     // =========================
     public function shopReviews(Request $request, $shopId)
     {
