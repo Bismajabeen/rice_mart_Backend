@@ -135,6 +135,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Stripe — customer starting a card payment
     Route::post('/stripe/create-intent', [StripeController::class, 'createPaymentIntent']);
+
+    // Cancel/Delete unpaid orders
+    Route::delete('/orders/{id}/cancel-unpaid', [OrderController::class, 'cancelUnpaidOrder']);
 });
 
 

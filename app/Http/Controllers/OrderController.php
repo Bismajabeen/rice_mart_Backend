@@ -249,6 +249,34 @@ class OrderController extends Controller
     }
 
     // =========================
+    // CANCEL / DELETE UNPAID ORDER (For Stripe Sandbox or Failed Payments)
+    // =========================
+    public function cancelUnpaidOrder(Request $request, $id)
+    {
+        $order = Order::with('items', 'payment')
+            ->where('id', $id)
+            ->where('user_id', $request->user()->id)
+            ->first();
+
+        if (!$order) {
+            return response()->json(['success' => false, 'message' => 'Order not found']);
+        }
+
+        if ($order->payment_status === 'paid') {
+            return response()->json(['success' => false, 'message' => 'Paid orders cannot be deleted']);
+        }
+
+        // Physically delete so it doesn't clutter the DB
+        $order->items()->delete();
+        if ($order->payment) {
+            $order->payment()->delete();
+        }
+        $order->delete();
+
+        return response()->json(['success' => true, 'message' => 'Order removed']);
+    }
+
+    // =========================
     // CUSTOMER CANCEL ORDER
     // =========================
     public function updateStatus(Request $request, $id)
