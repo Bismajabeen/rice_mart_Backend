@@ -8,13 +8,9 @@ use Illuminate\Support\Facades\Schema;
 
 class RiceCategorySeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
+    
     public function run(): void
     {
-        // Clear existing categories so this seeder reflects the
-        // current, final category list rather than appending to it.
         Schema::disableForeignKeyConstraints();
         RiceCategory::truncate();
         Schema::enableForeignKeyConstraints();

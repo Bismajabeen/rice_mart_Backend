@@ -20,23 +20,17 @@ class ShopReviewController extends Controller
 
         $item = OrderItem::with('shop.user')->findOrFail($request->order_item_id);
 
-        // security check only the buyer on this order can review it
         if ($item->order->user_id != auth()->id()) {
             return response()->json([
                 'message' => 'Unauthorized',
             ], 403);
         }
 
-        // only delivered items can be reviewed
         if ($item->status != 'delivered') {
             return response()->json([
                 'message' => 'You can review after delivery',
             ], 400);
         }
-
-        // =========================
-        // ONE REVIEW PER SHOP PER ORDER
-        // =========================
 
         $alreadyReviewed = ShopReview::where('customer_id', auth()->id())
             ->where('shop_id', $item->shop_id)
@@ -59,9 +53,6 @@ class ShopReviewController extends Controller
             'review' => $request->review,
         ]);
 
-        // =========================
-        // NOTIFY SELLER new review on their shop
-        // =========================
         if ($item->shop && $item->shop->user) {
             NotificationService::send(
                 $item->shop->user,
@@ -72,9 +63,6 @@ class ShopReviewController extends Controller
             );
         }
 
-        // =========================
-        // NOTIFY ADMIN + SUPER ADMIN  new review submitted
-        // =========================
         if (method_exists(NotificationService::class, 'sendToAdmins')) {
             NotificationService::sendToAdmins(
                 'review',
@@ -90,9 +78,6 @@ class ShopReviewController extends Controller
         ], 201);
     }
 
-    // =========================
-    // GET REVIEWS FOR A SHOP
-    // =========================
     public function shopReviews(Request $request, $shopId)
     {
         $shop = Shop::findOrFail($shopId);

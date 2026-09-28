@@ -20,7 +20,7 @@ class DeleteAccountOtpMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: '⚠️ Account Deletion Request - Rice Mart',
+            subject: 'Account Deletion Request - Rice Mart',
         );
     }
 

@@ -14,18 +14,13 @@ use Illuminate\Support\Facades\Log;
 
 class StripeController extends Controller
 {
-    // =========================
-    // CREATE PAYMENT INTENT
-    // =========================
+
     public function createPaymentIntent(Request $request)
     {
         $request->validate([
             'order_id' => 'required|exists:orders,id',
         ]);
 
-        // =========================
-        // OWNERSHIP CHECK
-        // =========================
         $order = Order::with('items', 'payment')
             ->where('id', $request->order_id)
             ->where('user_id', $request->user()->id)
@@ -38,9 +33,6 @@ class StripeController extends Controller
             ], 404);
         }
 
-        // =========================
-        // ALREADY PAID 
-        // =========================
         if ($order->payment_status === 'paid') {
             return response()->json([
                 'success' => false,
@@ -48,9 +40,6 @@ class StripeController extends Controller
             ], 400);
         }
 
-        // =========================
-        // GUARD endpoint is only for orders placed with the "card" payment method
-        // =========================
         $payment = $order->payment;
 
         if (!$payment || $payment->payment_method !== 'card') {
@@ -98,9 +87,6 @@ class StripeController extends Controller
             ],
         ]);
 
-        // =========================
-        // UPDATE THE EXISTING PAYMENT ROW 
-        // =========================
         $payment->update([
             'payment_type' => 'stripe',
             'amount' => $order->total_price,
@@ -114,10 +100,6 @@ class StripeController extends Controller
         ]);
     }
 
-    // =========================
-    // STRIPE WEBHOOK
-    // Stripe calls this directly no auth token, verified via signature
-    // =========================
     public function webhook(Request $request)
     {
         Stripe::setApiKey(config('services.stripe.secret'));
@@ -133,9 +115,6 @@ class StripeController extends Controller
             return response()->json(['error' => 'Invalid signature'], 400);
         }
 
-        // =========================
-        // PAYMENT SUCCEEDED
-        // =========================
         if ($event->type === 'payment_intent.succeeded') {
             $intent = $event->data->object;
             $payment = Payment::where('transaction_id', $intent->id)->first();
@@ -186,9 +165,6 @@ class StripeController extends Controller
             }
         }
 
-        // =========================
-        // PAYMENT FAILED
-        // =========================
         if ($event->type === 'payment_intent.payment_failed') {
             $intent = $event->data->object;
 

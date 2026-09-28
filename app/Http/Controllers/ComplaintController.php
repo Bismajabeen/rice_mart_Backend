@@ -9,7 +9,6 @@ use App\Services\NotificationService;
 
 class ComplaintController extends Controller
 {
-    // POST /api/complaints Customer or seller creates a complaint
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -41,9 +40,6 @@ class ComplaintController extends Controller
             'attachment_path' => $attachmentPath,
         ]);
 
-        // =========================
-        // NOTIFY ADMINS new complaint filed
-        // =========================
         NotificationService::sendToAdmins(
             'complaint',
             'New complaint filed',
@@ -54,7 +50,6 @@ class ComplaintController extends Controller
         return response()->json($complaint->load('messages'), 201);
     }
 
-    // GET /api/complaints/my customer/seller's own complaints
     public function myComplaints(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -65,7 +60,6 @@ class ComplaintController extends Controller
         return response()->json($complaints);
     }
 
-    // GET /api/complaints Super Admin only
     public function index(Request $request): JsonResponse
     {
         abort_unless($request->user()->can('view complaints'), 403, 'Forbidden');
@@ -79,7 +73,6 @@ class ComplaintController extends Controller
         return response()->json($query->get());
     }
 
-    // GET /api/complaints/{id}   Super Admin or Admin
     public function show(Request $request, Complaint $complaint): JsonResponse
     {
         $user = $request->user();
@@ -91,7 +84,6 @@ class ComplaintController extends Controller
         return response()->json($complaint->load('user:id,name,email', 'messages.sender:id,name'));
     }
 
-    // POST /api/complaints/{id}/messages  owner replies, or Super Admin replies
     public function addMessage(Request $request, Complaint $complaint): JsonResponse
     {
         $user = $request->user();
@@ -122,9 +114,6 @@ class ComplaintController extends Controller
             $complaint->update(['status' => 'in_progress']);
         }
 
-        // =========================
-        // NOTIFY THE SUPER ADMIN OR ADMIN
-        // =========================
         if ($isSuperAdmin) {
             NotificationService::send(
                 $complaint->user,
@@ -145,7 +134,6 @@ class ComplaintController extends Controller
         return response()->json($message, 201);
     }
 
-    // PATCH /api/complaints/{id}/status — Super Admin only
     public function updateStatus(Request $request, Complaint $complaint): JsonResponse
     {
         abort_unless($request->user()->can('manage complaints'), 403, 'Forbidden');
@@ -156,9 +144,6 @@ class ComplaintController extends Controller
 
         $complaint->update(['status' => $validated['status']]);
 
-        // =========================
-        // NOTIFY COMPLAINT OWNER status changed 
-        // =========================
         NotificationService::send(
             $complaint->user,
             'complaint',
@@ -170,7 +155,6 @@ class ComplaintController extends Controller
         return response()->json($complaint);
     }
 
-    // Only 'view customer dashboard' or 'view seller dashboard' can file a complaint
     private function resolveComplainantRole($user): string
     {
         if ($user->can('view seller dashboard')) {

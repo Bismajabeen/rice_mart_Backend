@@ -19,9 +19,6 @@ class RiceCategory extends Model
 
     protected $appends = ['image_url'];
 
-    // =========================
-    // FULL IMAGE URL ACCESSOR
-    // =========================
     public function getImageUrlAttribute()
     {
         return $this->image
@@ -29,9 +26,6 @@ class RiceCategory extends Model
             : null;
     }
 
-    // =========================
-    // PRODUCTS RELATION
-    // =========================
     public function products()
     {
         return $this->hasMany(Product::class);

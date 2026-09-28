@@ -12,7 +12,6 @@ use App\Mail\DeleteAccountOtpMail;
 
 class ProfileController extends Controller
 {
-    // me 
     public function me(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -35,7 +34,6 @@ class ProfileController extends Controller
         ]);
     }
 
-    // update profile 
     public function update(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -61,15 +59,12 @@ class ProfileController extends Controller
             ], 422);
         }
 
-        //  Always update name
         $user->name = $request->name;
 
-        // Update email only if NOT verified
         if ($request->filled('email') && !$user->is_verified) {
             $user->email = $request->email;
         }
 
-        // Update password if provided 
         if ($request->filled('password')) {
             $user->password = Hash::make($request->password);
 
@@ -100,7 +95,6 @@ class ProfileController extends Controller
         ]);
     }
 
-    // delete account request
     public function requestDeletion(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -119,7 +113,6 @@ class ProfileController extends Controller
         ]);
     }
 
-    // delete account confirm
     public function confirmDeletion(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [

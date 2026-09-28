@@ -12,9 +12,6 @@ use App\Services\NotificationService;
 
 class PaymentController extends Controller
 {
-    // =========================
-    // ADMIN PAYMENT LIST
-    // =========================
     public function adminPayments(Request $request)
     {
         if (
@@ -43,14 +40,8 @@ class PaymentController extends Controller
         ]);
     }
 
-    // =========================
-    // ADMIN UPDATE PAYMENT STATUS
-    // =========================
     public function updatePaymentStatus(Request $request, $id)
     {
-        // =========================
-        // ADMIN CHECK
-        // =========================
         if (
             !$request->user()->hasAnyRole([
                 'admin',
@@ -62,10 +53,6 @@ class PaymentController extends Controller
                 'message' => 'Unauthorized',
             ], 403);
         }
-
-        // =========================
-        // VALIDATION
-        // =========================
         $request->validate([
             'payment_status' => 'required|in:paid,rejected',
             'rejection_reason' => 'required_if:payment_status,rejected|string|max:1000',
@@ -74,9 +61,6 @@ class PaymentController extends Controller
         DB::beginTransaction();
         try {
 
-            // =========================
-            // GET PAYMENT
-            // =========================
             $payment = Payment::with([
                 'order.items.product',
                 'order.items.shop',
@@ -91,9 +75,6 @@ class PaymentController extends Controller
 
             $order = $payment->order;
 
-            // =========================
-            // PREVENT DOUBLE APPROVAL
-            // =========================
             if (in_array($payment->status, ['paid', 'rejected'])) {
 
                 DB::rollBack();
@@ -104,16 +85,10 @@ class PaymentController extends Controller
                 ], 400);
             }
 
-            // =========================
-            // PAYMENT APPROVED
-            // =========================
             if ($request->payment_status === 'paid') {
                 $this->markPaymentSuccessful($payment, $request->user()->id);
             }
 
-            // =========================
-            // PAYMENT REJECTED
-            // =========================
             if ($request->payment_status === 'rejected') {
 
                 $payment->update([
@@ -127,9 +102,6 @@ class PaymentController extends Controller
                     'payment_status' => 'rejected',
                 ]);
 
-                // =========================
-                // NOTIFY BUYER payment rejected
-                // =========================
                 NotificationService::send(
                     $order->user,
                     'payment_status',
@@ -158,9 +130,6 @@ class PaymentController extends Controller
         }
     }
 
-    // =========================
-    // MARK PAID
-    // =========================
     private function markPaymentSuccessful(Payment $payment, ?int $verifiedBy = null)
     {
         $order = $payment->order;
@@ -168,10 +137,6 @@ class PaymentController extends Controller
         if (in_array($payment->status, ['paid', 'rejected'])) {
             return; 
         }
-
-        // =========================
-        // STOCK CHECK AGAIN
-        // =========================
         foreach ($order->items as $item) {
 
             if (!$item->product) {
@@ -182,17 +147,9 @@ class PaymentController extends Controller
                 throw new \Exception($item->product->name . ' is out of stock');
             }
         }
-
-        // =========================
-        // DEDUCT STOCK
-        // =========================
         foreach ($order->items as $item) {
             $item->product->decrement('stock', $item->quantity);
         }
-
-        // =========================
-        // COMMISSION 
-        // =========================
 
         $commissionPercent = \App\Models\CommissionSetting::current();
 
@@ -205,10 +162,6 @@ class PaymentController extends Controller
                 'net_amount' => $lineTotal - $commission,
             ]);
         }
-
-        // =========================
-        // ONE PAYOUT ROW PER SHOP IN THIS ORDER
-        // =========================
         $order->refresh()->load('items');
 
 
@@ -231,9 +184,6 @@ class PaymentController extends Controller
             ]);
         }
 
-        // =========================
-        // UPDATE PAYMENT
-        // =========================
         $payment->update([
             'status' => 'paid',
             'verified_by' => $verifiedBy,
@@ -241,17 +191,11 @@ class PaymentController extends Controller
             'rejection_reason' => null,
         ]);
 
-        // =========================
-        // UPDATE ORDER
-        // =========================
         $order->update([
             'payment_status' => 'paid',
             'status' => 'processing',
         ]);
 
-        // =========================
-        // NOTIFY SELLER
-        // =========================
         $shopIds = $order->items->pluck('shop_id')->unique();
 
         foreach ($shopIds as $shopId) {
@@ -266,9 +210,6 @@ class PaymentController extends Controller
                     ['order_id' => $order->id]
                 );
 
-                // =========================
-                // NOTIFY SELLER — payment verified, ready to prepare
-                // =========================
                 NotificationService::send(
                     $shop->user,
                     'payment_status',
@@ -279,9 +220,7 @@ class PaymentController extends Controller
             }
         }
 
-        // =========================
-        // NOTIFY BUYER — payment confirmed
-        // =========================
+
         NotificationService::send(
             $order->user,
             'payment_status',
@@ -291,10 +230,7 @@ class PaymentController extends Controller
         );
     }
 
-    // =========================
-    // PUBLIC WRAPPER called by StripeController's webhook handler,
-    // since markPaymentSuccessful() itself is private to this class.
-    // =========================
+
     public function markPaymentSuccessfulPublic(Payment $payment)
     {
         $this->markPaymentSuccessful($payment, null);

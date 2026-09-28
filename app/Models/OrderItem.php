@@ -26,27 +26,21 @@ class OrderItem extends Model
         'customer_confirmed_at' => 'datetime',
     ];
 
-    // product Relation
     public function product()
     {
         return $this->belongsTo(Product::class);
     }
 
-    // Shop realation
     public function shop()
     {
         return $this->belongsTo(Shop::class);
     }
 
-    // =========================
-    // ORDER RELATION
-    // =========================
     public function order()
     {
         return $this->belongsTo(Order::class);
     }
 
-    // review relation
     public function review()
     {
         return $this->hasOne(ShopReview::class);

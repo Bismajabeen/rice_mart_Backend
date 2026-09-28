@@ -13,21 +13,23 @@ class TestImageController extends Controller
             $request->validate([
                 'image' => 'required|image',
             ]);
-              // Image 
+              
         $imageFile = $request->file('image');
         $imageData = base64_encode(file_get_contents($imageFile->getRealPath()));
         $mimeType  = $imageFile->getMimeType(); 
 
-        // Prompt 
+        
+        $dbCategories = \App\Models\RiceCategory::pluck('name')->implode(', ');
         $prompt = 'You are an agricultural rice quality inspector.
 Analyze the uploaded image and return ONLY valid JSON.
 Instructions:
 1. Determine whether the image contains rice grains.
 2. If it contains rice, identify the most likely rice variety.
-3. Evaluate the visible quality of the rice.
-4. Do not guess when confidence is low.
-5. Base your assessment only on what is visible in the image.
-6. Explain any uncertainty.
+3. CRITICAL: Here are our database categories: [ ' . $dbCategories . ' ]. You MUST select the most similar category from this list for the "rice_type". If none match, return "Other".
+4. Evaluate the visible quality of the rice.
+5. Do not guess when confidence is low.
+6. Base your assessment only on what is visible in the image.
+7. Explain any uncertainty.
 Return this exact JSON structure:
 {
   "is_rice": true,
@@ -42,7 +44,7 @@ Return this exact JSON structure:
   "recommendation": ""
 }';
 
-        // OpenAI API Call
+        
         $response = Http::withToken(env('OPENAI_API_KEY'))
             ->timeout(60)
             ->post('https://api.openai.com/v1/chat/completions', [
@@ -59,15 +61,18 @@ Return this exact JSON structure:
                                 'type'      => 'image_url',
                                 'image_url' => [
                                     'url' => "data:{$mimeType};base64,{$imageData}",
+                                    'detail' => 'low',
                                 ],
                             ],
                         ],
                     ],
                 ],
                 'max_tokens' => 800,
+                'temperature' => 0.0,
+                'response_format' => ['type' => 'json_object'],
             ]);
 
-        // Parse Response 
+        
         if ($response->failed()) {
             return response()->json([
                 'success' => false,
@@ -77,7 +82,7 @@ Return this exact JSON structure:
 
         $content = $response->json('choices.0.message.content');
 
-       
+        
         $content = preg_replace('/```json|```/', '', $content);
         $content = trim($content);
 
@@ -89,7 +94,7 @@ Return this exact JSON structure:
                 'message' => 'Failed to parse AI response',
             ], 500);
         }
- // Return
+ 
         return response()->json([
             'success' => true,
             'data'    => $result,

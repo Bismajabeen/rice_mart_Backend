@@ -7,9 +7,6 @@ use App\Models\OrderItem;
 
 class SellerOrderController extends Controller
 {
-    // =========================
-    // SELLER ORDERS LIST
-    // =========================
     public function sellerOrders(Request $request)
     {
         $shop = $request->user()->shop()->first();
@@ -29,8 +26,6 @@ class SellerOrderController extends Controller
             'shop'
         ])
         ->where('shop_id', $shop->id)
-
-        // fetch only paid orders
         ->whereHas('order', function ($q) {
             $q->where('payment_status', 'paid');
         })
@@ -38,18 +33,14 @@ class SellerOrderController extends Controller
         ->latest()
         ->get();
 
-        // =========================
-        // GROUP THIS SHOP'S ITEMS BY ORDER
-        // =========================
         $grouped = $items->groupBy('order_id')->map(function ($shopItems) use ($shop) {
             $order = $shopItems->first()->order;
 
-            // this shop's own weight-based delivery charge for this order
+            
             $shopDeliveryCharge = \App\Models\OrderShopCharge::where('order_id', $order->id)
                 ->where('shop_id', $shop->id)
                 ->value('delivery_charge') ?? 0;
 
-            // overall status for this shop's items within the order
             $statuses = $shopItems->pluck('status');
 
             if ($statuses->every(fn ($s) => $s === 'delivered')) {
@@ -83,9 +74,6 @@ class SellerOrderController extends Controller
         ]);
     }
 
-    // =========================
-    // SELLER UPDATE ORDER STATUS 
-    // =========================
     public function updateStatus(Request $request, $orderId)
     {
         $shop = $request->user()->shop()->first();
@@ -115,9 +103,6 @@ class SellerOrderController extends Controller
 
         $order = $items->first()->order;
 
-        // =========================
-        // PAYMENT MUST BE APPROVED
-        // =========================
         if ($order->payment_status !== 'paid') {
             return response()->json([
                 'success' => false,
@@ -125,9 +110,6 @@ class SellerOrderController extends Controller
             ], 400);
         }
 
-        // =========================
-        // PREVENT CHANGES AFTER DELIVERY
-        // =========================
         if ($items->contains(fn ($i) => $i->status === 'delivered')) {
             return response()->json([
                 'success' => false,
@@ -135,18 +117,12 @@ class SellerOrderController extends Controller
             ], 400);
         }
 
-        // =========================
-        // UPDATE ALL OF THIS SHOP'S ITEMS IN THE ORDER
-        // =========================
         foreach ($items as $item) {
             $item->update([
                 'status' => $request->status
             ]);
         }
 
-        // =========================
-        // SYNC MAIN ORDER STATUS 
-        // =========================
         $statuses = $order->items()->pluck('status');
 
         if ($statuses->every(fn ($s) => $s === 'delivered')) {

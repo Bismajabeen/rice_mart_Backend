@@ -80,7 +80,6 @@ class CityController extends Controller
             ], 404);
         }
 
-        // Prevent deleting city if courier charge exists
         if ($city->courierCharge()->exists()) {
             return response()->json([
                 'success' => false,
@@ -108,9 +107,6 @@ class CityController extends Controller
        ], 200);
     }
 
-    // =========================
-    // PUBLIC: CITIES + THEIR COURIER CHARGE (for checkout dropdown)
-    // =========================
     public function citiesWithCharges()
     {
         $cities = City::whereHas('courierCharge')

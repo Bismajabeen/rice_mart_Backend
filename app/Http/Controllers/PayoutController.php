@@ -9,9 +9,6 @@ use Illuminate\Support\Facades\Storage;
 
 class PayoutController extends Controller
 {
-    // =========================
-    // ADMIN LIST ALL PAYOUTS
-    // =========================
     public function index(Request $request)
     {
         if (!$request->user()->hasAnyRole(['admin', 'super_admin'])) {
@@ -33,9 +30,6 @@ class PayoutController extends Controller
         ]);
     }
 
-    // =========================
-    // ADMIN MARK A PAYOUT AS PAID
-    // =========================
     public function pay(Request $request, $id)
     {
         if (!$request->user()->hasAnyRole(['admin', 'super_admin'])) {
@@ -56,7 +50,7 @@ class PayoutController extends Controller
             'transaction_id' => 'required|string|max:255',
             'proof' => 'required|image|max:2048',
         ]);
-        // Block payout if the seller hasn't added the account
+        
         $shop = $payout->shop;
 
         $sellerHasEasypaisa = !empty($shop->payout_easypaisa_number);
@@ -87,9 +81,6 @@ class PayoutController extends Controller
             'paid_by' => $request->user()->id,
         ]);
 
-        // =========================
-        // NOTIFY SELLER payout sent
-        // =========================
         $shop = $payout->shop;
 
         if ($shop && $shop->user) {
@@ -109,9 +100,6 @@ class PayoutController extends Controller
         ]);
     }
 
-    // =========================
-    // SELLER LIST THEIR OWN PAYOUTS
-   // =========================
     public function sellerPayouts(Request $request)
     {
       $shop = $request->user()->shop()->first();

@@ -12,9 +12,6 @@ use App\Services\NotificationService;
 
 class ChatController extends Controller
 {
-    // =====================================================
-    // GET conversations
-    // =====================================================
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -43,7 +40,6 @@ class ChatController extends Controller
                     ];
                 });
         } else {
-            // Buyer — list all their conversations
             $conversations = Conversation::where('buyer_id', $user->id)
                 ->whereHas('messages')
                 ->with(['shop', 'lastMessage'])
@@ -67,9 +63,7 @@ class ChatController extends Controller
         return response()->json($conversations);
     }
 
-    // =====================================================
-    // GET conversationsid messages
-    // =====================================================
+    
     public function messages(Request $request, $conversationId)
     {
         $user = Auth::user();
@@ -105,9 +99,6 @@ class ChatController extends Controller
         return response()->json($messages);
     }
 
-    // =====================================================
-    // Buyer opens a chat with a shop (creates conversation if it doesn't exist)
-    // =====================================================
     public function start(Request $request)
     {
         $request->validate(['shop_id' => 'required|exists:shops,id']);
@@ -125,9 +116,7 @@ class ChatController extends Controller
         ], 201);
     }
 
-    // =====================================================
-    // Send a message in a conversation
-    // =====================================================
+    
     public function send(Request $request, $conversationId)
     {
         $request->validate(['body' => 'required|string|max:2000']);
@@ -135,7 +124,6 @@ class ChatController extends Controller
         $user = Auth::user();
         $conversation = Conversation::findOrFail($conversationId);
 
-        // Security check
         $shop = Shop::find($conversation->shop_id);
         $isBuyer  = $conversation->buyer_id === $user->id;
         $isSeller = $shop && $shop->user_id === $user->id;
@@ -151,12 +139,8 @@ class ChatController extends Controller
             'is_read'         => false,
         ]);
 
-        // Update last_message_at on the conversation
         $conversation->update(['last_message_at' => now()]);
 
-        // =========================
-        // NOTIFY THE SELLER new message
-        // =========================
         $recipient = $isBuyer
             ? ($shop ? $shop->user : null)
             : User::find($conversation->buyer_id);

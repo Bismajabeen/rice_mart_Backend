@@ -30,23 +30,8 @@ use App\Http\Controllers\SellerRemovalController;
 use App\Http\Controllers\StripeController;
 use App\Http\Controllers\CommissionSettingController;
 
-/*
-|--------------------------------------------------------------------------
-| Route map legend
-|--------------------------------------------------------------------------
-| PUBLIC        -> no auth required
-| ANY LOGGED IN -> auth:sanctum only, no specific role/permission
-| CUSTOMER      -> permission normally only granted to the customer role
-| SELLER        -> permission normally only granted to the seller role
-| ADMIN         -> permission granted to admin (and super_admin, who has everything)
-| SUPER ADMIN   -> permission granted ONLY to super_admin
-|--------------------------------------------------------------------------
-*/
 
-
-// =========================================================================
-// PUBLIC — AUTH / ONBOARDING
-// =========================================================================
+// PUBLIC AUTH
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
@@ -56,9 +41,7 @@ Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
 
-// =========================================================================
-// PUBLIC — BROWSING (no auth, used by app before login / guest browsing)
-// =========================================================================
+// PUBLIC
 
 Route::get('/rice-categories', [RiceCategoryController::class, 'index']);
 Route::get('/all-rice-categories', [RiceCategoryController::class, 'allCategories']);
@@ -71,20 +54,16 @@ Route::get('/delivery-charges', [CourierChargeController::class, 'deliverableCit
 
 Route::get('/approved-shops', [ShopController::class, 'approvedShops']);
 
-// Public product recommendation endpoint
+
 Route::post('/ai-recommendation', [AiRecommendationController::class, 'recommend']);
 
-// Stripe calls this directly  must stay outside auth:sanctum
+
 Route::post('/stripe/webhook', [StripeController::class, 'webhook']);
 
-// Test/dev image upload helper kept exactly as in the original file
-// (no auth middleware on this one, same as before)
 Route::post('/test-image', [TestImageController::class, 'upload']);
 
 
-// =========================================================================
-// ANY LOGGED-IN USER (auth:sanctum only no specific permission)
-// =========================================================================
+// LOGGED IN USER 
 
 Route::middleware('auth:sanctum')->group(function () {
 
@@ -95,21 +74,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', fn (Request $request) => $request->user());
     Route::put('/update-profile', [ProfileController::class, 'update']);
 
-    // Notifications — always scoped to the logged-in user in the controller
+    // Notifications 
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
     Route::put('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
     Route::put('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
     Route::delete('/notifications/clear-all', [NotificationController::class, 'clearAll']);
 
-    // Needed by customers at checkout and by sellers filling in payout
-    // details, so it stays open to any authenticated user rather than
-    // gated to one role.
     Route::get('/payment-settings', [PaymentSettingController::class, 'paymentSettings']);
 
-    // =========================
     // SHOP REVIEWS
-    // =========================
     Route::post('/shop-review', [ShopReviewController::class, 'store']);
     Route::get('/shops/{shopId}/reviews', [ShopReviewController::class, 'shopReviews']);
 
@@ -123,24 +97,21 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/settings/emergency-contact', [SettingController::class, 'emergencyContact']);
 
-    // Chat controller scopes conversations to the logged-in user
+    // Chat controller 
     Route::get('/conversations', [ChatController::class, 'index']);
     Route::post('/conversations/start', [ChatController::class, 'start']);
     Route::get('/conversations/{id}/messages', [ChatController::class, 'messages']);
     Route::post('/conversations/{id}/messages', [ChatController::class, 'send']);
 
-    // Stripe customer starting a card payment
+    // Stripe 
     Route::post('/stripe/create-intent', [StripeController::class, 'createPaymentIntent']);
 });
 
-
-// =========================================================================
 // CUSTOMER ROUTES
-// =========================================================================
 
 Route::middleware('auth:sanctum')->group(function () {
 
-    // Applying to become a seller
+    // to become a seller
     Route::post('/shops', [ShopController::class, 'store'])
         ->middleware('permission:create shop');
 
@@ -167,10 +138,7 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('permission:view own orders');
 });
 
-
-// =========================================================================
 // SELLER ROUTES
-// =========================================================================
 
 Route::middleware('auth:sanctum')->group(function () {
 
@@ -212,16 +180,14 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 
-// =========================================================================
-// ADMIN ROUTES  (admin + super_admin, since super_admin has every permission)
-// =========================================================================
+//admin + super_admin Routes
 
 Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/admin/create-seller', [ShopController::class, 'adminCreateSeller'])
         ->middleware('permission:create sellers');
 
-    // --- Users ----
+    // Users
     Route::get('/users', [UserController::class, 'index'])
         ->middleware('permission:view users');
 
@@ -237,7 +203,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/users/{id}', [UserController::class, 'destroy'])
         ->middleware('permission:delete users');
 
-    // --- Categories ---
+    // Categories
      Route::post('/rice-categories', [RiceCategoryController::class, 'store'])
         ->middleware('permission:create categories');
     
@@ -247,7 +213,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/rice-categories/{id}/status', [RiceCategoryController::class, 'updateStatus'])
         ->middleware('permission:update categories');
 
-    // --- Shop approval / lifecycle ---
+    // Shop approval
     Route::get('/pending-shops', [ShopController::class, 'pendingShops'])
         ->middleware('permission:view all shops');
 
@@ -269,7 +235,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/removed-shops', [SellerRemovalController::class, 'removedShops'])
         ->middleware('permission:view all shops');
 
-    // --- Orders ---
+    // Orders 
     Route::get('/admin/orders', [OrderController::class, 'adminOrders'])
         ->middleware('permission:view all orders');
 
@@ -282,7 +248,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/orders/{id}/status', [OrderController::class, 'updateStatus'])
         ->middleware('permission:update any order status');
 
-    // --- Payments & payouts ---
+    // Payments & payouts
     Route::get('/admin/payments', [PaymentController::class, 'adminPayments'])
         ->middleware('permission:view all payments');
 
@@ -295,11 +261,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/admin/payouts/{id}/pay', [PayoutController::class, 'pay'])
         ->middleware('permission:manage payments');
 
-    // --- Payment settings ---
+    // Payment settings
     Route::post('/admin/payment-settings', [PaymentSettingController::class, 'adminUpdatePaymentSettings'])
         ->middleware('permission:manage settings');
 
-    // --- Cities & courier charges ---
+    // Cities & courier charges
     Route::get('/admin/cities', [CityController::class, 'index'])
         ->middleware('permission:manage cities');
 
@@ -328,14 +294,9 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('permission:manage cities');
 });
 
-
-// =========================================================================
-// SUPER ADMIN ONLY
-// =========================================================================
-
 Route::middleware('auth:sanctum')->group(function () {
 
-    // --- Role management ---
+    // Role management 
     Route::get('/roles-management', [RoleController::class, 'index'])
         ->middleware('permission:view roles');
 
@@ -348,7 +309,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/roles-management/{id}', [RoleController::class, 'destroy'])
         ->middleware('permission:delete roles');
 
-    // --- Permission management ---
+    // Permission management 
     Route::get('/permission-roles', [RoleController::class, 'getRoles'])
         ->middleware('permission:assign permissions');
 
@@ -361,14 +322,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/assign-permissions', [PermissionController::class, 'assignPermissions'])
         ->middleware('permission:assign permissions');
 
-    // --- Complaints admin view / resolution ---
+    // Complaints admin view
     Route::get('/complaints', [ComplaintController::class, 'index'])
         ->middleware('permission:view complaints');
 
     Route::patch('/complaints/{complaint}/status', [ComplaintController::class, 'updateStatus'])
         ->middleware('permission:manage complaints');
     
-    // --- Commission management ---
+    // Commission management
     Route::get('/admin/commission', [CommissionSettingController::class, 'show'])
         ->middleware('permission:manage commission');
 
@@ -382,9 +343,7 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 
-// =========================================================================
 // DASHBOARDS
-// =========================================================================
 
 Route::middleware(['auth:sanctum', 'permission:view customer dashboard'])
     ->get('/customer/dashboard', [DashboardController::class, 'customerDashboard']);

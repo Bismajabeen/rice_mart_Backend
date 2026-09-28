@@ -7,9 +7,6 @@ use Illuminate\Http\Request;
 
 class NotificationController extends Controller
 {
-    // =========================
-    // LIST 
-    // =========================
     public function index(Request $request)
     {
         $notifications = AppNotification::where('user_id', $request->user()->id)
@@ -23,9 +20,6 @@ class NotificationController extends Controller
         ]);
     }
 
-    // =========================
-    // UNREAD COUNT
-    // =========================
     public function unreadCount(Request $request)
     {
         $count = AppNotification::where('user_id', $request->user()->id)
@@ -38,9 +32,6 @@ class NotificationController extends Controller
         ]);
     }
 
-    // =========================
-    // MARK ONE AS READ
-    // =========================
     public function markAsRead(Request $request, $id)
     {
         $notification = AppNotification::where('user_id', $request->user()->id)
@@ -67,9 +58,6 @@ class NotificationController extends Controller
         ]);
     }
 
-    // =========================
-    // MARK ALL AS READ
-    // =========================
     public function markAllAsRead(Request $request)
     {
         AppNotification::where('user_id', $request->user()->id)
@@ -85,9 +73,6 @@ class NotificationController extends Controller
         ]);
     }
 
-    // =========================
-    // CLEAR ALL
-    // =========================
     public function clearAll(Request $request)
     {
         AppNotification::where('user_id', $request->user()->id)

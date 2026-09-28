@@ -13,9 +13,7 @@ use App\Services\NotificationService;
 
 class ShopController extends Controller
 {
-    // =========================
-    // CREATE SHOP 
-    // =========================
+
     public function store(Request $request)
     {
         $request->validate([
@@ -156,9 +154,6 @@ class ShopController extends Controller
         ]);
     }
 
-    // =========================
-    // REJECT SHOP
-    // =========================
     public function reject(Request $request, $id)
     {
         $request->validate([

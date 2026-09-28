@@ -9,16 +9,8 @@ use Illuminate\Support\Facades\Hash;
 
 class AdminController extends Controller
 {
-    // =========================
-    // CREATE SELLER + SHOP
-    // =========================
-
     public function createSeller(Request $request)
     {
-        // =========================
-        // VALIDATION
-        // =========================
-
         $request->validate([
             'name' => 'required',
             'email' => 'required|email|unique:users,email',
@@ -31,25 +23,13 @@ class AdminController extends Controller
             'cnic' => 'nullable',
         ]);
 
-        // =========================
-        // CREATE USER
-        // =========================
-
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
         ]);
 
-        // =========================
-        // ASSIGN SELLER ROLE
-        // =========================
-
         $user->assignRole('seller');
-
-        // =========================
-        // CREATE SHOP
-        // =========================
 
         $shop = Shop::create([
             'user_id' => $user->id,
@@ -71,11 +51,6 @@ class AdminController extends Controller
             'status' => 'approved',
             'is_approved' => 1,
         ]);
-
-        // =========================
-        // RESPONSE
-        // =========================
-
         return response()->json([
             'success' => true,
             'message' => 'Seller created successfully',

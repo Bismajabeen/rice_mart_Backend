@@ -192,13 +192,13 @@
 
         <!-- Warning Banner -->
         <div class="warning-banner">
-            <p>⚠️ This is a sensitive account action. Do not share this email with anyone.</p>
+            <p> This is a sensitive account action. Do not share this email with anyone.</p>
         </div>
 
         <!-- Body -->
         <div class="body">
 
-            <div class="greeting">Hello, {{ $name }} 👋</div>
+            <div class="greeting">Hello, {{ $name }}</div>
 
             <p class="message">
                 We received a request to <strong>permanently delete your Rice Mart account</strong>.
@@ -210,12 +210,12 @@
             <div class="otp-label">Your Deletion OTP</div>
             <div class="otp-box">
                 <div class="otp-code">{{ $otp }}</div>
-                <div class="otp-expiry">⏳ This OTP expires in 10 minutes</div>
+                <div class="otp-expiry"> This OTP expires in 10 minutes</div>
             </div>
 
             <!-- What gets deleted -->
             <div class="warning-note">
-                <p><strong>⚠️ Deleting your account will permanently remove:</strong></p>
+                <p><strong> Deleting your account will permanently remove:</strong></p>
                 <ul>
                     <li>Your profile and personal information</li>
                     <li>Your order history</li>

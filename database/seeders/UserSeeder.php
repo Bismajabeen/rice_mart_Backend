@@ -13,9 +13,6 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        // =========================================
-        // SUPER ADMIN
-        // =========================================
 
         $superAdmin = User::firstOrCreate(
             ['email' => 'superadmin@test.com'],
@@ -33,10 +30,6 @@ class UserSeeder extends Seeder
                 ->toArray()
         );
 
-        // =========================================
-        // ADMIN
-        // =========================================
-
         $admin = User::firstOrCreate(
             ['email' => 'admin@test.com'],
             [
@@ -48,12 +41,6 @@ class UserSeeder extends Seeder
 
         $admin->syncRoles('admin');
 
-        // =========================================
-        // RICE CATEGORIES (needed so products have something to attach to)
-        // firstOrCreate by name, so if you already have a RiceCategorySeeder
-        // with these exact names, it will just reuse them instead of duplicating.
-        // =========================================
-
         $categoryNames = ['Basmati', 'Sella', 'IRRI-6', 'Kainat'];
 
         $categories = collect($categoryNames)->map(function ($name) {
@@ -62,10 +49,6 @@ class UserSeeder extends Seeder
                 ['status' => true]
             );
         });
-
-        // =========================================
-        // 4 SELLERS + 4 APPROVED SHOPS + 4 PRODUCTS EACH
-        // =========================================
 
         for ($i = 1; $i <= 4; $i++) {
 
@@ -114,10 +97,6 @@ class UserSeeder extends Seeder
             }
         }
 
-        // =========================================
-        // 4 CUSTOMERS (BUYERS)
-        // =========================================
-
         for ($i = 1; $i <= 4; $i++) {
             $customer = User::firstOrCreate(
                 ['email' => "customer{$i}@test.com"],
@@ -130,10 +109,6 @@ class UserSeeder extends Seeder
 
             $customer->syncRoles('customer');
         }
-
-        // =========================================
-        // SUMMARY
-        // =========================================
 
         $rows = [
             ['super_admin', 'superadmin@test.com', 'password'],

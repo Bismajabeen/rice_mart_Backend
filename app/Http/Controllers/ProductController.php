@@ -10,14 +10,9 @@ use App\Services\NotificationService;
 
 class ProductController extends Controller
 {
-    // =========================
-    // LOW STOCK THRESHOLD
-    // =========================
+
     const LOW_STOCK_THRESHOLD = 5;
 
-    // =========================
-    // CREATE PRODUCT
-    // =========================
     public function store(Request $request)
     {
         $request->validate([
@@ -29,7 +24,6 @@ class ProductController extends Controller
             'image' => 'required|image|mimes:jpg,jpeg,png,webp|max:4096',
         ]);
 
-        //  Ownership check
         $shop = Shop::where('id', $request->shop_id)
             ->where('user_id', auth()->id())
             ->where('is_approved', 1)
@@ -41,8 +35,7 @@ class ProductController extends Controller
                 'message' => 'You are not allowed to use this shop'
             ], 403);
         }
-
-        // Category check
+        
         $category = RiceCategory::where('id', $request->rice_category_id)
             ->where('status', true)
             ->first();
@@ -67,9 +60,6 @@ class ProductController extends Controller
             'image' => $imagePath,
         ]);
 
-        // =========================
-        // NOTIFY SELLER  new product already low on stock
-        // =========================
         if ($product->stock <= self::LOW_STOCK_THRESHOLD) {
             NotificationService::send(
                 $shop->user,
@@ -87,9 +77,6 @@ class ProductController extends Controller
         ]);
     }
 
-    // =========================
-    // SHOP PRODUCTS (PUBLIC)
-    // =========================
     public function shopProducts($shopId)
     {
         $products = Product::with(['shop', 'riceCategory'])
@@ -105,9 +92,6 @@ class ProductController extends Controller
         return response()->json($products);
     }
 
-    // =========================
-    // ALL PRODUCTS (PUBLIC)
-    // =========================
     public function allProducts()
     {
         return Product::with(['shop', 'riceCategory'])
@@ -120,9 +104,6 @@ class ProductController extends Controller
             ->get();
     }
 
-    // =========================
-    // UPDATE PRODUCT
-    // =========================
     public function update(Request $request, $id)
     {
         $request->validate([
@@ -131,7 +112,6 @@ class ProductController extends Controller
             'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
         ]);
 
-        // Ownership check through shop
         $product = Product::with('shop.user')
             ->where('id', $id)
             ->whereHas('shop', function ($query) {
@@ -147,7 +127,6 @@ class ProductController extends Controller
             ], 403);
         }
 
-        // Track whether we're crossing INTO low stock
         $wasAboveThreshold = $product->stock > self::LOW_STOCK_THRESHOLD;
 
         $updateData = [
@@ -155,9 +134,7 @@ class ProductController extends Controller
             'stock' => $request->stock,
         ];
 
-        // Replace image only if a new one is uploaded
         if ($request->hasFile('image')) {
-            // delete old image if exists
             if ($product->image && \Illuminate\Support\Facades\Storage::disk('public')->exists($product->image)) {
                 \Illuminate\Support\Facades\Storage::disk('public')->delete($product->image);
             }
@@ -166,9 +143,6 @@ class ProductController extends Controller
 
         $product->update($updateData);
 
-        // =========================
-        // NOTIFY SELLER  stock just dropped to/below threshold
-        // =========================
         if ($wasAboveThreshold && $product->stock <= self::LOW_STOCK_THRESHOLD) {
             NotificationService::send(
                 $product->shop->user,
@@ -186,12 +160,8 @@ class ProductController extends Controller
         ]);
     }
 
-    // =========================
-    // DELETE PRODUCT
-    // =========================
     public function delete($id)
     {
-        // Ownership check through shop
         $product = Product::where('id', $id)
          ->whereHas('shop', function ($query) {
             $query->where('user_id', auth()->id());
@@ -204,7 +174,6 @@ class ProductController extends Controller
             ], 403);
         }
 
-        // Remove image file from disk too
         if ($product->image && \Illuminate\Support\Facades\Storage::disk('public')->exists($product->image)) {
             \Illuminate\Support\Facades\Storage::disk('public')->delete($product->image);
         }

@@ -15,7 +15,6 @@ class AiRecommendationController extends Controller
         ]);
         $query = $request->input('query');
 
-        // Fetch products 
         $allProducts = Product::with(['shop', 'riceCategory'])
             ->where('stock', '>', 0)
             ->get()
@@ -25,11 +24,7 @@ class AiRecommendationController extends Controller
                     'name'          => $p->name,
                     'price'         => $p->price,
                     'stock'         => $p->stock,
-                    'shop_id'          => optional($p->shop)->id,
                     'shop_name'     => optional($p->shop)->shop_name ?? 'N/A',
-                    'shop_address'     => optional($p->shop)->address ?? '',
-                    'shop_owner_name'  => optional($p->shop)->owner_name ?? '',
-                    'shop_description' => optional($p->shop)->description ?? '',
                     'category_name' => optional($p->riceCategory)->name ?? 'N/A',
                 ];
             })
@@ -37,10 +32,12 @@ class AiRecommendationController extends Controller
 
         $productsJson = json_encode($allProducts);
 
-        // Build prompt 
+        
         $systemPrompt = <<<PROMPT
 You are an expert rice advisor for a rice shop called "Rice Mart".
 Your job is to help customers understand different rice types and dishes.
+
+CRITICAL: For the "rice_type" field in your JSON response, you MUST output the exact "category_name" from the provided products JSON that best matches the query.
 
 When given a query about a rice type or dish, respond ONLY with a valid JSON object
 (no markdown, no extra text) with this exact structure:
@@ -74,7 +71,7 @@ Provide detailed rice information for the query.
 Also identify which products match this rice type or dish.
 MSG;
 
-        // Call OpenAI
+        
         try {
             $response = Http::withToken(config('services.openai.key'))
                 ->timeout(30)
@@ -86,9 +83,10 @@ MSG;
                     ],
                     'max_tokens'  => 1200,
                     'temperature' => 0.7,
+                    'response_format' => ['type' => 'json_object'],
                 ]);
 
-            // Log full OpenAI response for debugging
+          
             \Log::info('OpenAI status: ' . $response->status());
             \Log::info('OpenAI body: ' . $response->body());
 
@@ -99,7 +97,7 @@ MSG;
             }
             $content = $response->json()['choices'][0]['message']['content'] ?? '{}';
 
-            // Strip markdown fences if present
+            
             $content = preg_replace('/```json|```/', '', $content);
             $content = trim($content);
 
@@ -110,7 +108,7 @@ MSG;
                 return response()->json(['error' => 'Invalid AI response format'], 500);
             }
 
-            //  Match products 
+            
             $keywords = array_merge(
                 [$query],
                 $aiData['related_keywords'] ?? [],
@@ -130,9 +128,7 @@ MSG;
         }
     }
 
-    // =========================================================
-    // MATCH PRODUCTS BY KEYWORDS
-    // =========================================================
+    
     private function matchProducts(array $products, array $keywords): array
     {
         $matched = [];

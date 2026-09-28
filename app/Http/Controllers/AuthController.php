@@ -12,9 +12,6 @@ use App\Models\BannedEmail;
 
 class AuthController extends Controller
 {
-    // =========================
-    // REGISTER (Step 1: send OTP)
-    // =========================
     public function register(Request $request)
     {
        $request->validate([
@@ -28,7 +25,6 @@ class AuthController extends Controller
        
         $request->merge(['email' => strtolower($request->email)]);
 
-        // akready banned
       if (BannedEmail::where('email', $request->email)->exists()) {
         return response()->json([
             'message' => 'This email is not permitted to register on Rice Mart.',
@@ -37,7 +33,6 @@ class AuthController extends Controller
 
         $existingUser = User::where('email', $request->email)->first();
 
-      // Already registered verified
       if ($existingUser && $existingUser->is_verified && $existingUser->account_status !== 'removed') {
         return response()->json([
             'message' => 'Email is already in use',
@@ -48,9 +43,6 @@ class AuthController extends Controller
       $otpExpiry = now()->addMinutes(10);
 
       if ($existingUser && $existingUser->account_status === 'removed') {
-        // ======================
-        // REMOVED not banned
-        // ======================
         $existingUser->update([
             'name' => $request->name,
             'password' => Hash::make($request->password),
@@ -66,7 +58,7 @@ class AuthController extends Controller
 
         $user = $existingUser;
        } elseif ($existingUser && !$existingUser->is_verified) {
-        // exists but never verified update details + resend otp
+
         $existingUser->update([
             'name' => $request->name,
             'password' => Hash::make($request->password),
@@ -94,9 +86,7 @@ class AuthController extends Controller
          'email' => $user->email,
         ], 200);
     }
-    // =========================
-    // VERIFY OTP (Step 2: confirm registration)
-    // =========================
+
     public function verifyOtp(Request $request)
     {
         $request->validate([
@@ -142,9 +132,6 @@ class AuthController extends Controller
         ], 201);
     }
 
-    // =========================
-    // RESEND OTP
-    // =========================
     public function resendOtp(Request $request)
     {
         $request->validate(['email' => 'required|email']);
@@ -169,75 +156,68 @@ class AuthController extends Controller
 
         return response()->json(['message' => 'OTP resent successfully']);
     }
-// =========================
-// FORGOT PASSWORD (Step 1: send OTP)
-// =========================
-public function forgotPassword(Request $request)
-{
-    $request->validate([
-        'email' => 'required|email',
-    ]);
 
-    $user = User::where('email', $request->email)->first();
+    public function forgotPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+        ]);
 
-    if (!$user) {
-        return response()->json(['message' => 'No account found with this email'], 404);
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json(['message' => 'No account found with this email'], 404);
+        }
+
+        $otp = random_int(100000, 999999);
+
+        $user->update([
+            'otp' => $otp,
+            'otp_expires_at' => now()->addMinutes(10),
+        ]);
+
+        Mail::to($user->email)->send(new ResetPasswordOtpMail($otp, $user->name));
+
+        return response()->json([
+            'message' => 'OTP sent to your email',
+            'email' => $user->email,
+        ], 200);
     }
 
-    $otp = random_int(100000, 999999);
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'otp' => 'required',
+            'password' => 'required|min:6',
+        ]);
 
-    $user->update([
-        'otp' => $otp,
-        'otp_expires_at' => now()->addMinutes(10),
-    ]);
+        $user = User::where('email', $request->email)->first();
 
-   Mail::to($user->email)->send(new ResetPasswordOtpMail($otp, $user->name));
+        if (!$user) {
+            return response()->json(['message' => 'User not found'], 404);
+        }
 
-    return response()->json([
-        'message' => 'OTP sent to your email',
-        'email' => $user->email,
-    ], 200);
-}
+        if ($user->otp != $request->otp) {
+            return response()->json(['message' => 'Invalid OTP'], 422);
+        }
 
-// =========================
-// RESET PASSWORD (Step 2: verify OTP + update password)
-// =========================
-public function resetPassword(Request $request)
-{
-    $request->validate([
-        'email' => 'required|email',
-        'otp' => 'required',
-        'password' => 'required|min:6',
-    ]);
+        if (now()->greaterThan($user->otp_expires_at)) {
+            return response()->json(['message' => 'OTP expired, please request a new one'], 422);
+        }
 
-    $user = User::where('email', $request->email)->first();
-
-    if (!$user) {
-        return response()->json(['message' => 'User not found'], 404);
-    }
-
-    if ($user->otp != $request->otp) {
-        return response()->json(['message' => 'Invalid OTP'], 422);
-    }
-
-    if (now()->greaterThan($user->otp_expires_at)) {
-        return response()->json(['message' => 'OTP expired, please request a new one'], 422);
-    }
-
-    $user->update([
-        'password' => Hash::make($request->password),
-        'otp' => null,
-        'otp_expires_at' => null,
-    ]);
+        $user->update([
+            'password' => Hash::make($request->password),
+            'otp' => null,
+            'otp_expires_at' => null,
+        ]);
 
     
-    $user->tokens()->delete();
+        $user->tokens()->delete();
 
-    return response()->json(['message' => 'Password reset successful. Please login.']);
-}
-    // =========================
-    // LOGIN  blocks unverified users
-    // =========================
+        return response()->json(['message' => 'Password reset successful. Please login.']);
+    }
+
     public function login(Request $request)
     {
         $request->validate([
@@ -251,7 +231,6 @@ public function resetPassword(Request $request)
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
 
-        // Check if the user is removed
         if ($user->account_status === 'removed') {
             return response()->json(['message' => 'Your Rice Mart account has been removed. Please check your email for details.',], 403);
         }
@@ -275,10 +254,6 @@ public function resetPassword(Request $request)
             'shop' => $shop,
         ]);
     }
-
-    // =========================
-    // ME (GET CURRENT USER with roles, permissions, and shop status)
-    // =========================
 
     public function me(Request $request)
     {

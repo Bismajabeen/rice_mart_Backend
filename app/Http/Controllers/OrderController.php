@@ -16,9 +16,6 @@ use App\Services\NotificationService;
 
 class OrderController extends Controller
 {
-    // =========================
-    // CHECKOUT 
-    // =========================
 
     public function checkout(Request $request)
     {
@@ -70,9 +67,6 @@ class OrderController extends Controller
 
             $paymentStatus = 'pending';
 
-            // =========================
-            // CREATE ORDER 
-            // =========================
             $order = Order::create([
                 'user_id' => $user->id,
                 'order_number' => 'ORD-' . now()->format('Ymd') . '-' . strtoupper(substr(uniqid(), -6)),
@@ -152,9 +146,6 @@ class OrderController extends Controller
                 ]);
             }
 
-            // =========================
-            // DELIVERY CHARGE one charge PER SHOP
-            // =========================
             $deliveryCharge = 0;
 
             foreach ($shopWeights as $shopId => $weight) {
@@ -176,9 +167,6 @@ class OrderController extends Controller
                 'delivery_charge' => $deliveryCharge,
             ]);
 
-            // =========================
-            // payment
-            // =========================
             Payment::create([
                 'order_id' => $order->id,
                 'payment_method' => $request->payment_method,
@@ -218,9 +206,6 @@ class OrderController extends Controller
         }
     }
 
-    // =========================
-    // CUSTOMER 
-    // =========================
     public function cancelUnpaidCardOrder(Request $request, $id)
     {
         $order = Order::with('payment', 'items')
@@ -249,7 +234,6 @@ class OrderController extends Controller
         DB::beginTransaction();
 
         try {
-            // Stock is only decremented once payment succeeds
             OrderItem::where('order_id', $order->id)->delete();
             $payment->delete();
             $order->delete();
@@ -270,9 +254,6 @@ class OrderController extends Controller
     }
 
 
-    // =========================
-    // CUSTOMER ORDERS
-    // =========================
     public function myOrders(Request $request)
     {
         return response()->json([
@@ -284,9 +265,6 @@ class OrderController extends Controller
         ]);
     }
 
-    // =========================
-    // ACTIVE ORDERS
-    // =========================
     public function activeOrders(Request $request)
     {
         return response()->json([
@@ -302,9 +280,6 @@ class OrderController extends Controller
         ]);
     }
 
-    // =========================
-    // ORDER HISTORY
-    // =========================
     public function orderHistory(Request $request)
     {
         return response()->json([
@@ -322,9 +297,6 @@ class OrderController extends Controller
         ]);
     }
 
-    // =========================
-    // CUSTOMER CANCEL ORDER
-    // =========================
     public function updateStatus(Request $request, $id)
     {
         $order = Order::with('items.product', 'payment')
@@ -373,9 +345,6 @@ class OrderController extends Controller
         ]);
     }
 
-    // =========================
-    // ADMIN ORDERS
-    // =========================
     public function adminOrders(Request $request)
     {
         if (!$request->user()->hasAnyRole(['admin', 'super_admin'])) {
@@ -392,9 +361,6 @@ class OrderController extends Controller
         ]);
     }
 
-    // =========================
-    // ADMIN ORDER HISTORY
-    // =========================
     public function adminOrderHistory(Request $request)
     {
         if (!$request->user()->hasAnyRole(['admin', 'super_admin'])) {
@@ -413,9 +379,6 @@ class OrderController extends Controller
         ]);
     }
 
-    // =========================
-    // ADMIN UPDATE ORDER ITEM STATUS
-    // =========================
     public function adminUpdateOrderItemStatus(Request $request, $id)
     {
         if (!$request->user()->hasAnyRole(['admin', 'super_admin'])) {
@@ -455,9 +418,6 @@ class OrderController extends Controller
         ]);
     }
 
-    // =========================
-    // CUSTOMER CONFIRMS THEY RECEIVED AN ITEM
-    // =========================
     public function confirmReceived(Request $request, $id)
     {
         $item = OrderItem::with('order')
@@ -482,8 +442,6 @@ class OrderController extends Controller
 
         $item->update(['customer_confirmed_at' => now()]);
 
-        // If every item from this shop in this order is now confirmed,
-        // the payout for that shop becomes eligible for admin to pay out.
         $stillUnconfirmed = OrderItem::where('order_id', $item->order_id)
             ->where('shop_id', $item->shop_id)
             ->whereNull('customer_confirmed_at')
@@ -495,9 +453,6 @@ class OrderController extends Controller
                 ->where('status', 'pending')
                 ->update(['status' => 'ready']);
 
-            // =========================
-            // NOTIFY ADMINS  payout ready to release
-            // =========================
             if ($updated) {
                 $payout = SellerPayout::where('order_id', $item->order_id)
                     ->where('shop_id', $item->shop_id)
@@ -519,9 +474,6 @@ class OrderController extends Controller
         ]);
     }
 
-    // =========================
-    // SHARED HELPER: RECALCULATE ORDER STATUS FROM ITS ITEMS
-    // =========================
     private function syncOrderStatus(Order $order): void
     {
         $oldStatus = $order->status; 
@@ -542,9 +494,6 @@ class OrderController extends Controller
 
         $order->save();
 
-        // =========================
-        // EMAIL + NOTIFY ON STATUS CHANGE
-        // =========================
        
         if ($order->status !== $oldStatus && $order->status !== 'pending') {
 
@@ -579,7 +528,6 @@ class OrderController extends Controller
                     ['order_id' => $order->id]
                 );
 
-                // Admins need to know so they can release payment to the seller
                 NotificationService::sendToAdmins(
                     'payment_release',
                     'Release payment to seller',
@@ -600,9 +548,6 @@ class OrderController extends Controller
         }
     }
 
-    // =========================
-    // CUSTOMER CONFIRMS RECEIPT FOR ALL ITEMS FROM ONE SHOP IN AN ORDER
-    // =========================
     public function confirmShopReceived(Request $request, $orderId, $shopId)
     {
      $items = OrderItem::where('order_id', $orderId)

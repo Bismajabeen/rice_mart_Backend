@@ -13,9 +13,6 @@ use Illuminate\Support\Facades\Mail;
 
 class SellerRemovalController extends Controller
 {
-    // =========================
-    // PERMANENTLY REMOVE SELLER
-    // =========================
     public function remove(Request $request, $shopId)
     {
         $request->validate([
@@ -37,15 +34,12 @@ class SellerRemovalController extends Controller
 
         DB::transaction(function () use ($request, $shop, $user, $permanentlyBan) {
 
-            // Mark shop removed 
             $shop->update([
                 'status' => 'removed',
             ]);
-
-            // Deactivate all products under this shop 
+ 
             Product::where('shop_id', $shop->id)->update(['is_active' => false]);
 
-            // Revoke seller role deactivate account
             $user->syncRoles(['customer']);
             $user->update([
                 'account_status' => 'removed',
@@ -53,10 +47,9 @@ class SellerRemovalController extends Controller
                 'removed_at' => now(),
             ]);
 
-            // Kill all active sessions/tokens immediately
+            
             $user->tokens()->delete();
 
-            // Optional permanent ban
             if ($permanentlyBan) {
                 BannedEmail::updateOrCreate(
                     ['email' => $user->email],
@@ -64,7 +57,6 @@ class SellerRemovalController extends Controller
                 );
             }
 
-            // Audit trail
             SellerRemoval::create([
                 'shop_id' => $shop->id,
                 'user_id' => $user->id,
@@ -74,7 +66,6 @@ class SellerRemovalController extends Controller
             ]);
         });
 
-        // Notify the seller by email
         try {
             Mail::to($user->email)->send(
                 new SellerRemovedMail($user->name, $shop->shop_name, $request->reason)
@@ -89,9 +80,6 @@ class SellerRemovalController extends Controller
         ]);
     }
 
-    // =========================
-    // REMOVED SHOPS 
-    // =========================
     public function removedShops()
     {
         return response()->json(

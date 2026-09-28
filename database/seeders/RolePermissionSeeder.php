@@ -11,40 +11,17 @@ class RolePermissionSeeder extends Seeder
 {
     public function run(): void
     {
-        // =========================================
-        // RESET CACHE
-        // =========================================
 
         app()[PermissionRegistrar::class]
             ->forgetCachedPermissions();
 
-        // =========================================
-        // ALL PERMISSIONS
-        // =========================================
-
         $permissions = [
-
-            // =========================
-            // CUSTOMER DASHBOARD
-            // =========================
 
             'view customer dashboard',
 
-            // =========================
-            // SELLER DASHBOARD
-            // =========================
-
             'view seller dashboard',
 
-            // =========================
-            // ADMIN DASHBOARD
-            // =========================
-
             'view admin dashboard',
-
-            // =========================
-            // PRODUCTS
-            // =========================
 
             'view public products',
             'view own products',
@@ -59,10 +36,6 @@ class RolePermissionSeeder extends Seeder
 
             'delete own products',
             'delete any products',
-
-            // =========================
-            // SHOPS
-            // =========================
 
             'view public shops',
             'view own shop',
@@ -81,28 +54,15 @@ class RolePermissionSeeder extends Seeder
             'approve shops',
             'reject shops',
 
-            // NEW: admin/super admin permanently removing a seller from a shop
             'remove sellers',
-
-            // =========================
-            // SELLER REQUESTS
-            // =========================
 
             'create seller request',
             'view own seller request',
-
-            // =========================
-            // CART
-            // =========================
 
             'add to cart',
             'view cart',
             'update cart',
             'remove from cart',
-
-            // =========================
-            // ORDERS
-            // =========================
 
             'create order',
             'checkout orders',
@@ -122,10 +82,6 @@ class RolePermissionSeeder extends Seeder
             'update order status',
             'update any order status',
 
-            // =========================
-            // PAYMENTS
-            // =========================
-
             'create payment',
 
             'view own payments',
@@ -135,12 +91,7 @@ class RolePermissionSeeder extends Seeder
             'manage payments',
             'receive payments',
 
-            // NEW: seller viewing their own payout records (distinct from viewing orders)
             'view own payouts',
-
-            // =========================
-            // CHAT & MESSAGES
-            // =========================
 
             'chat with sellers',
             'chat with customers',
@@ -150,28 +101,16 @@ class RolePermissionSeeder extends Seeder
             'view own messages',
             'view shop messages',
 
-            // =========================
-            // NOTIFICATIONS
-            // =========================
-
             'view own notifications',
             'view all notifications',
 
             'send notifications',
             'send customer notifications',
 
-            // =========================
-            // PROFILE & SETTINGS
-            // =========================
-
             'update own profile',
 
             'update own settings',
             'manage settings',
-
-            // =========================
-            // ADDRESS MANAGEMENT
-            // =========================
 
             'create address',
 
@@ -181,45 +120,21 @@ class RolePermissionSeeder extends Seeder
 
             'delete own address',
 
-            // =========================
-            // REVIEWS & FEEDBACK
-            // =========================
-
             'create reviews',
             'view reviews',
 
             'view feedback',
             'reply feedback',
 
-            // =========================
-            // CUSTOMER DELIVERY INFO
-            // =========================
-
             'view customer delivery info',
 
-            // =========================
-            // INVENTORY
-            // =========================
-
             'manage own inventory',
-
-            // =========================
-            // ANALYTICS
-            // =========================
 
             'view own analytics',
             'view all analytics',
 
-            // =========================
-            // REPORTS
-            // =========================
-
             'view reports',
             'export reports',
-
-            // =========================
-            // USERS
-            // =========================
 
             'view users',
 
@@ -229,91 +144,45 @@ class RolePermissionSeeder extends Seeder
 
             'delete users',
 
-            // =========================
-            // SELLERS
-            // =========================
-
             'create sellers',
             'view sellers',
             'update sellers',
 
-            // =========================
-            // SEARCH SYSTEM
-            // =========================
-
             'search system',
-
-            // =========================
-            // CATEGORIES
-            // =========================
 
             'create categories',
             'view categories',
             'update categories',
             'delete categories',
 
-            // =========================
-            // CITIES & COURIER CHARGES
-            // =========================
-
-            // NEW: manage delivery cities + courier/shipping charges (admin settings area)
             'manage cities',
 
-            // =========================
-            // COMPLAINTS
-            // =========================
-
-            // NEW: any customer/seller can file a complaint
             'file complaints',
-            // NEW: view the full complaints list (not just "my complaints") - super admin only
+            
             'view complaints',
-            // NEW: reply to / change status of a complaint - super admin only, per business rule
+            
             'manage complaints',
 
-            // =========================
-            // ROLES
-            // =========================
-
-            // NEW: list roles in the role-management screen (separate from create/update/delete)
             'view roles',
             'create roles',
             'update roles',
             'delete roles',
             'assign roles',
 
-            // =========================
-            // PERMISSIONS
-            // =========================
 
             'create permissions',
             'update permissions',
             'delete permissions',
             'assign permissions',
 
-            // =========================
-            // COMMISSION
-            // =========================
-
             'manage commission',
-
-            // =========================
-            // SYSTEM
-            // =========================
 
             'manage system',
             'backup system',
             'restore system',
 
-            // =========================
-            // FULL ACCESS
-            // =========================
-
             'full access',
         ];
-
-        // =========================================
-        // CREATE PERMISSIONS
-        // =========================================
 
         foreach ($permissions as $permission) {
 
@@ -322,10 +191,6 @@ class RolePermissionSeeder extends Seeder
                 'guard_name' => 'web',
             ]);
         }
-
-        // =========================================
-        // CREATE ROLES
-        // =========================================
 
         $customer = Role::firstOrCreate([
             'name' => 'customer',
@@ -347,10 +212,6 @@ class RolePermissionSeeder extends Seeder
             'guard_name' => 'web',
         ]);
 
-        // =========================================
-        // CUSTOMER PERMISSIONS
-        // =========================================
-
         $customer->syncPermissions([
 
             'view customer dashboard',
@@ -366,8 +227,6 @@ class RolePermissionSeeder extends Seeder
             'create seller request',
             'view own seller request',
 
-            // needed while their shop application is pending, so they can
-            // edit it if the admin sends back a correction request
             'update own shop',
 
             'add to cart',
@@ -410,10 +269,6 @@ class RolePermissionSeeder extends Seeder
 
             'file complaints',
         ]);
-
-        // =========================================
-        // SELLER PERMISSIONS
-        // =========================================
 
         $seller->syncPermissions([
 
@@ -468,29 +323,11 @@ class RolePermissionSeeder extends Seeder
             'file complaints',
         ]);
 
-        // =========================================
-        // ADMIN PERMISSIONS
-       // =========================================
-        // Admin's real permission set is entirely controlled by Super Admin
-       // through the Assign Permissions screen — not by this seeder. We only
-      // seed the bare minimum ('view admin dashboard') the FIRST time this
-      // role is created, so a fresh admin can at least log in and see their
-      // dashboard. The count() === 0 guard means re-running this seeder
-      // later will NOT reset/override anything Super Admin has since
-      // configured through the panel.
        if ($admin->permissions()->count() === 0) {
          $admin->syncPermissions([
             'view admin dashboard',
         ]);
         }
-
-        // =========================================
-        // SUPER ADMIN PERMISSIONS
-        // =========================================
-        // Super Admin gets every permission that exists — including
-        // role/permission management and complaint handling, neither of
-        // which Admin has. Anything added to $permissions above
-        // automatically becomes available to Super Admin here.
 
         $superAdmin->syncPermissions($permissions);
     }

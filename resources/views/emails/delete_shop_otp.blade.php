@@ -207,19 +207,19 @@
 
         <!-- Header -->
         <div class="header">
-            <div class="logo">🌾 Rice<span>Mart</span></div>
+            <div class="logo"> Rice<span>Mart</span></div>
             <div class="tagline">Pakistan's AI-Powered Rice Marketplace</div>
         </div>
 
         <!-- Warning Banner -->
         <div class="warning-banner">
-            <p>⚠️ This is a sensitive shop action. Do not share this email with anyone.</p>
+            <p> This is a sensitive shop action. Do not share this email with anyone.</p>
         </div>
 
         <!-- Body -->
         <div class="body">
 
-            <div class="greeting">Hello, {{ $name }} 👋</div>
+            <div class="greeting">Hello, {{ $name }} </div>
 
             <p class="message">
                 We received a request to <strong>permanently delete your shop</strong> from Rice Mart.
@@ -236,12 +236,12 @@
             <div class="otp-label">Your Deletion OTP</div>
             <div class="otp-box">
                 <div class="otp-code">{{ $otp }}</div>
-                <div class="otp-expiry">⏳ This OTP expires in 10 minutes</div>
+                <div class="otp-expiry"> This OTP expires in 10 minutes</div>
             </div>
 
             <!-- What gets deleted -->
             <div class="warning-note">
-                <p><strong>⚠️ Deleting this shop will permanently remove:</strong></p>
+                <p><strong> Deleting this shop will permanently remove:</strong></p>
                 <ul>
                     <li>Your shop profile and CNIC verification details</li>
                     <li>All product listings under this shop</li>

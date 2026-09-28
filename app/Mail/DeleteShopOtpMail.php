@@ -21,7 +21,7 @@ class DeleteShopOtpMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: '⚠️ Confirm Shop Deletion - Rice Mart',
+            subject: 'Confirm Shop Deletion - Rice Mart',
         );
     }
 

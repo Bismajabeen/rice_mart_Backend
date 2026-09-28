@@ -7,9 +7,6 @@ use App\Models\PaymentSetting;
 
 class PaymentSettingController extends Controller
 {
-    // =========================
-    // GET PAYMENT SETTINGS
-    // =========================
     public function paymentSettings()
     {
         
@@ -30,9 +27,6 @@ class PaymentSettingController extends Controller
         ]);
     }
 
-    // =========================
-    // ADMIN UPDATE PAYMENT SETTINGS
-    // =========================
     public function adminUpdatePaymentSettings(Request $request)
     {
         if (

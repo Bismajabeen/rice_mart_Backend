@@ -7,10 +7,6 @@ use Spatie\Permission\Models\Role;
 
 class RoleController extends Controller
 {
-    // =========================
-    // GET ALL ROLES
-    // =========================
-
     public function index()
     {
         $roles = Role::all();
@@ -22,17 +18,12 @@ class RoleController extends Controller
                 'name' => $role->name,
                 'guard_name' => $role->guard_name,
 
-                // USERS COUNT
                 'users_count' => $role->users()->count(),
             ];
         });
 
         return response()->json($data);
     }
-
-    // =========================
-    // CREATE ROLE
-    // =========================
 
     public function store(Request $request)
     {
@@ -52,10 +43,6 @@ class RoleController extends Controller
         ]);
     }
 
-    // =========================
-    // UPDATE ROLE
-    // =========================
-
     public function update(Request $request, $id)
     {
         $request->validate([
@@ -74,10 +61,6 @@ class RoleController extends Controller
         ]);
     }
 
-    // =========================
-    // DELETE ROLE
-    // =========================
-
     public function destroy($id)
     {
         $role = Role::findOrFail($id);
@@ -90,20 +73,12 @@ class RoleController extends Controller
         ]);
     }
 
-    // =========================
-    // GET ROLES FOR DROPDOWN
-    // =========================
-
     public function getRoles()
     {
         return response()->json(
             Role::select('id', 'name')->get()
         );
     }
-
-    // =========================
-    // GET ALL PERMISSIONS
-    // =========================
 
     public function permissions()
     {
@@ -114,10 +89,6 @@ class RoleController extends Controller
             )->get()
         );
     }
-
-    // =========================
-    // ASSIGN PERMISSIONS
-    // =========================
 
     public function assignPermissions(Request $request)
     {

@@ -8,9 +8,6 @@ use Spatie\Permission\Models\Permission;
 
 class PermissionController extends Controller
 {
-    // =========================
-    // GET ALL PERMISSIONS
-    // =========================
 
     public function getPermissions()
     {
@@ -19,11 +16,7 @@ class PermissionController extends Controller
         );
     }
 
-    // =========================
-    // GET ROLE PERMISSIONS
-    // =========================
-
-      public function getRolePermissions($id)
+    public function getRolePermissions($id)
     {
        $role = Role::findOrFail($id);
 
@@ -36,10 +29,6 @@ class PermissionController extends Controller
         }),
      ]);
     }
-
-    // =========================
-    // ASSIGN PERMISSIONS
-    // =========================
 
     public function assignPermissions(Request $request)
     {

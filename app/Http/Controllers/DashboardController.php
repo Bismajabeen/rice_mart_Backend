@@ -13,9 +13,6 @@ use App\Models\SellerPayout;
 
 class DashboardController extends Controller
 {
-    // =========================
-    // CUSTOMER DASHBOARD
-    // =========================
     public function customerDashboard(Request $request)
     {
         $user = $request->user();
@@ -40,9 +37,6 @@ class DashboardController extends Controller
         ]);
     }
 
-    // =========================
-    // SELLER DASHBOARD
-    // =========================
     public function sellerDashboard(Request $request)
     {
         $user = $request->user();
@@ -93,9 +87,6 @@ class DashboardController extends Controller
         ]);
     }
 
-    // =========================
-    // ADMIN DASHBOARD
-    // =========================
     public function adminDashboard()
     {
       $totalUsers = User::count();

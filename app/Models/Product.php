@@ -19,25 +19,16 @@ class Product extends Model
         'is_active',
     ];
 
-    // =========================
-    // USER RELATION
-    // =========================
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    // =========================
-    // SHOP RELATION
-    // =========================
     public function shop()
     {
         return $this->belongsTo(Shop::class);
     }
 
-    // =========================
-    // RICE CATEGORY RELATION
-    // =========================
     public function riceCategory()
     {
         return $this->belongsTo(RiceCategory::class);

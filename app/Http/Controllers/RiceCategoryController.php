@@ -8,9 +8,6 @@ use Illuminate\Support\Facades\Storage;
 
 class RiceCategoryController extends Controller
 {
-    // =========================
-    // FETCH ACTIVE CATEGORIES
-    // =========================
     public function index()
     {
         $categories = RiceCategory::where('status', true)
@@ -20,9 +17,6 @@ class RiceCategoryController extends Controller
         return response()->json($categories);
     }
 
-    // =========================
-    // FETCH ALL CATEGORIES FOR ADMIN DASHBOARD
-    // =========================
     public function allCategories()
     {
         return response()->json(
@@ -30,9 +24,6 @@ class RiceCategoryController extends Controller
         );
     }
 
-    // =========================
-    // CREATE CATEGORY
-    // =========================
     public function store(Request $request)
     {
         $request->validate([
@@ -59,9 +50,6 @@ class RiceCategoryController extends Controller
         ], 201);
     }
 
-    // =========================
-    // UPDATE CATEGORY FOR ADMIN DASHBOARD
-    // =========================
     public function update(Request $request, $id)
     {
         $category = RiceCategory::find($id);
@@ -84,7 +72,6 @@ class RiceCategoryController extends Controller
         }
 
         if ($request->hasFile('image')) {
-            // delete old image before saving new one
             if ($category->image) {
                 Storage::disk('public')->delete($category->image);
             }
@@ -100,9 +87,6 @@ class RiceCategoryController extends Controller
         ]);
     }
 
-    // =========================
-    // UPDATE CATEGORY STATUS
-    // =========================
     public function updateStatus(Request $request, $id)
     {
         $category = RiceCategory::find($id);
