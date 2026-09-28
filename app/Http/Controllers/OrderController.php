@@ -48,9 +48,7 @@ class OrderController extends Controller
                 ], 400);
             }
 
-            $deliveryBaseCharge = (float) $city->courierCharge->charge;
-            $deliveryExtraPercent = (float) $city->courierCharge->extra_percent;
-            $deliveryPerKgExtra = $deliveryBaseCharge * ($deliveryExtraPercent / 100);
+            $deliveryChargePerShop = (float) $city->courierCharge->charge;
 
             $paymentProof = null;
 
@@ -67,6 +65,7 @@ class OrderController extends Controller
 
             $paymentStatus = 'pending';
 
+        
             $order = Order::create([
                 'user_id' => $user->id,
                 'order_number' => 'ORD-' . now()->format('Ymd') . '-' . strtoupper(substr(uniqid(), -6)),
@@ -83,7 +82,6 @@ class OrderController extends Controller
 
             $total = 0;
             $shopIds = [];
-            $shopWeights = [];
 
             foreach ($cartItems as $item) {
 
@@ -134,7 +132,6 @@ class OrderController extends Controller
                 $total += $subtotal;
 
                 $shopIds[] = $product->shop_id;
-                $shopWeights[$product->shop_id] = ($shopWeights[$product->shop_id] ?? 0) + $item['quantity'];
 
                 OrderItem::create([
                     'order_id' => $order->id,
@@ -146,27 +143,16 @@ class OrderController extends Controller
                 ]);
             }
 
-            $deliveryCharge = 0;
-
-            foreach ($shopWeights as $shopId => $weight) {
-                $extraKg = $weight > 1 ? $weight - 1 : 0;
-                $shopCharge = $deliveryBaseCharge + ($deliveryPerKgExtra * $extraKg);
-                $deliveryCharge += $shopCharge;
-
-                \App\Models\OrderShopCharge::create([
-                    'order_id' => $order->id,
-                    'shop_id' => $shopId,
-                    'weight_kg' => $weight,
-                    'delivery_charge' => round($shopCharge, 2),
-                ]);
-            }
-            
+           
+            $shopCount = count(array_unique($shopIds));
+            $deliveryCharge = $deliveryChargePerShop * $shopCount;
 
             $order->update([
                 'total_price' => $total + $deliveryCharge,
                 'delivery_charge' => $deliveryCharge,
             ]);
 
+            
             Payment::create([
                 'order_id' => $order->id,
                 'payment_method' => $request->payment_method,
@@ -176,17 +162,6 @@ class OrderController extends Controller
                 'screenshot_path' => $paymentProof,
                 'status' => $paymentStatus,
             ]);
-
-            
-            if ($request->payment_method !== 'card') {
-                NotificationService::sendToAdmins(
-                    'payment_pending',
-                    'New payment submitted',
-                    'Order ' . $order->order_number . ' has a payment awaiting approval.',
-                    ['order_id' => $order->id]
-                );
-            }   
-
 
             DB::commit();
 
@@ -206,70 +181,24 @@ class OrderController extends Controller
         }
     }
 
-    public function cancelUnpaidCardOrder(Request $request, $id)
-    {
-        $order = Order::with('payment', 'items')
-            ->where('id', $id)
-            ->where('user_id', $request->user()->id)
-            ->first();
-
-        if (!$order) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Order not found or unauthorized',
-            ], 404);
-        }
-
-        $payment = $order->payment;
-
-       
-
-        if (!$payment ||$payment->payment_method !== 'card' ||$payment->status === 'paid') {
-            return response()->json([
-                'success' => false,
-                'message' => 'This order cannot be cancelled',
-            ], 400);
-        }
-
-        DB::beginTransaction();
-
-        try {
-            OrderItem::where('order_id', $order->id)->delete();
-            $payment->delete();
-            $order->delete();
-
-            DB::commit();
-            return response()->json([
-                'success' => true,
-                'message' => 'Unpaid card order cancelled successfully',
-            ]);
-        } catch (\Exception $e) {
-                DB::rollBack();
-
-                return response()->json([
-                    'success' => false,
-                    'message' => $e->getMessage(),
-                ], 500);
-            }
-    }
-
-
+    
     public function myOrders(Request $request)
     {
         return response()->json([
             'success' => true,
-            'orders' => Order::with('payment', 'items.product', 'items.shop', 'items.review')
+            'orders' => Order::with('payment', 'items.product', 'items.shop')
                 ->where('user_id', $request->user()->id)
                 ->latest()
                 ->get(),
         ]);
     }
 
+    
     public function activeOrders(Request $request)
     {
         return response()->json([
             'success' => true,
-            'orders' => Order::with('payment', 'items.product', 'items.shop', 'items.review')
+            'orders' => Order::with('payment', 'items.product', 'items.shop')
                 ->where('user_id', $request->user()->id)
                 ->where('payment_status', '!=', 'rejected')
                 ->whereHas('items', function ($q) {
@@ -280,11 +209,12 @@ class OrderController extends Controller
         ]);
     }
 
+    
     public function orderHistory(Request $request)
     {
         return response()->json([
             'success' => true,
-            'orders' => Order::with('payment', 'items.product', 'items.shop', 'items.review')
+            'orders' => Order::with('payment', 'items.product', 'items.shop')
                 ->where('user_id', $request->user()->id)
                 ->where(function ($q) {
                     $q->where('payment_status', 'rejected')
@@ -297,6 +227,33 @@ class OrderController extends Controller
         ]);
     }
 
+   
+    public function cancelUnpaidOrder(Request $request, $id)
+    {
+        $order = Order::with('items', 'payment')
+            ->where('id', $id)
+            ->where('user_id', $request->user()->id)
+            ->first();
+
+        if (!$order) {
+            return response()->json(['success' => false, 'message' => 'Order not found']);
+        }
+
+        if ($order->payment_status === 'paid') {
+            return response()->json(['success' => false, 'message' => 'Paid orders cannot be deleted']);
+        }
+
+        
+        $order->items()->delete();
+        if ($order->payment) {
+            $order->payment()->delete();
+        }
+        $order->delete();
+
+        return response()->json(['success' => true, 'message' => 'Order removed']);
+    }
+
+   
     public function updateStatus(Request $request, $id)
     {
         $order = Order::with('items.product', 'payment')
@@ -328,6 +285,7 @@ class OrderController extends Controller
 
         $order->update(['status' => 'cancelled']);
 
+       
         Mail::to($order->user->email)->send(new OrderStatusUpdated($order));
 
         NotificationService::send(
@@ -345,6 +303,7 @@ class OrderController extends Controller
         ]);
     }
 
+  
     public function adminOrders(Request $request)
     {
         if (!$request->user()->hasAnyRole(['admin', 'super_admin'])) {
@@ -354,13 +313,13 @@ class OrderController extends Controller
         return response()->json([
             'success' => true,
             'orders' => Order::with(['user', 'payment', 'items.product', 'items.shop'])
-                ->where('payment_status', 'paid')
                 ->whereNotIn('status', ['delivered', 'cancelled'])
                 ->latest()
                 ->get(),
         ]);
     }
 
+    
     public function adminOrderHistory(Request $request)
     {
         if (!$request->user()->hasAnyRole(['admin', 'super_admin'])) {
@@ -370,10 +329,7 @@ class OrderController extends Controller
         return response()->json([
             'success' => true,
             'orders' => Order::with(['user', 'payment', 'items.product', 'items.shop'])
-            ->where(function ($q) {
-                $q->whereIn('status', ['delivered', 'cancelled'])
-                    ->orWhere('payment_status', 'rejected');
-            })
+                ->whereIn('status', ['delivered', 'cancelled'])
                 ->latest()
                 ->get(),
         ]);
@@ -418,6 +374,7 @@ class OrderController extends Controller
         ]);
     }
 
+    
     public function confirmReceived(Request $request, $id)
     {
         $item = OrderItem::with('order')
@@ -442,6 +399,7 @@ class OrderController extends Controller
 
         $item->update(['customer_confirmed_at' => now()]);
 
+        
         $stillUnconfirmed = OrderItem::where('order_id', $item->order_id)
             ->where('shop_id', $item->shop_id)
             ->whereNull('customer_confirmed_at')
@@ -453,6 +411,7 @@ class OrderController extends Controller
                 ->where('status', 'pending')
                 ->update(['status' => 'ready']);
 
+            
             if ($updated) {
                 $payout = SellerPayout::where('order_id', $item->order_id)
                     ->where('shop_id', $item->shop_id)
@@ -474,6 +433,7 @@ class OrderController extends Controller
         ]);
     }
 
+    
     private function syncOrderStatus(Order $order): void
     {
         $oldStatus = $order->status; 
@@ -528,6 +488,7 @@ class OrderController extends Controller
                     ['order_id' => $order->id]
                 );
 
+                
                 NotificationService::sendToAdmins(
                     'payment_release',
                     'Release payment to seller',
@@ -546,60 +507,5 @@ class OrderController extends Controller
                 );
             }
         }
-    }
-
-    public function confirmShopReceived(Request $request, $orderId, $shopId)
-    {
-     $items = OrderItem::where('order_id', $orderId)
-        ->where('shop_id', $shopId)
-        ->whereHas('order', fn ($q) => $q->where('user_id', $request->user()->id))
-        ->get();
-
-     if ($items->isEmpty()) {
-        return response()->json(['success' => false, 'message' => 'Items not found'], 404);
-     }
-
-     if ($items->contains(fn ($i) => $i->status !== 'delivered')) {
-        return response()->json([
-            'success' => false,
-            'message' => 'All items must be delivered before confirming',
-        ], 400);
-     }
-
-     if ($items->every(fn ($i) => $i->customer_confirmed_at !== null)) {
-        return response()->json(['success' => false, 'message' => 'Already confirmed'], 400);
-     }
-
-     foreach ($items as $item) {
-        if (!$item->customer_confirmed_at) {
-            $item->update(['customer_confirmed_at' => now()]);
-        }
-     }
-
-     $updated = SellerPayout::where('order_id', $orderId)
-        ->where('shop_id', $shopId)
-        ->where('status', 'pending')
-        ->update(['status' => 'ready']);
-
-     if ($updated) {
-        $payout = SellerPayout::where('order_id', $orderId)
-            ->where('shop_id', $shopId)
-            ->first();
-
-        $order = $items->first()->order;
-
-        NotificationService::sendToAdmins(
-            'payment_release',
-            'Payout ready',
-            'Customer confirmed receipt for order ' . ($order->order_number ?? $orderId) . ' — ready to pay seller.',
-            ['order_id' => $orderId, 'payout_id' => $payout?->id]
-        );
-     }
-
-     return response()->json([
-        'success' => true,
-        'message' => 'Thanks for confirming!',
-        'items' => $items->fresh(),
-        ]);
     }
 }
